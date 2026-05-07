@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { enrollmentsApi, certificationsApi, uploadsApi, aiApi } from "../services/api.js";
+import { enrollmentsApi, certificationsApi, uploadsApi, aiApi, tasksApi } from "../services/api.js";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { Button } from "../components/Button.jsx";

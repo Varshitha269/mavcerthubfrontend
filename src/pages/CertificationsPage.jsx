@@ -80,13 +80,15 @@ function Badge({ label, colors }) {
 }
 
 // ── Single certification card ─────────────────────────────────────────────────
-function CertCard({ cert, enrolled, onEnroll, onSave, enrolling }) {
+function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStartTest, eligibility, enrolling, isAdmin }) {
   const catColors = CATEGORY_COLORS[cert.category] || {};
   const lvlColors = LEVEL_COLORS[cert.level] || {};
   const prereqs = cert.prerequisites ? cert.prerequisites.split("\n").filter(Boolean) : [];
 
   const isEnrolled = enrolled?.status === "selected" || enrolled?.status === "in_progress" || enrolled?.status === "completed";
   const isSaved = enrolled?.status === "saved_for_later";
+  const testPassed = eligibility?.test_passed || eligibility?.test_attempt?.passed;
+  const canEnroll = testPassed === true;
 
   return (
     <div
@@ -146,7 +148,27 @@ function CertCard({ cert, enrolled, onEnroll, onSave, enrolling }) {
       )}
 
       {/* Footer actions */}
+      {eligibility && (
+        <div className="relative mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className={`text-xs font-semibold uppercase tracking-wider ${testPassed ? "text-emerald-300" : eligibility.eligible ? "text-sky-300" : "text-amber-300"}`}>
+            {testPassed ? "Test Passed" : eligibility.eligible ? "Profile Looks Eligible" : "Review Required"}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            {eligibility.message || eligibility.explanation}
+          </p>
+          {eligibility.test_attempt && (
+            <p className="mt-1 text-xs text-slate-500">Latest test score: {eligibility.test_attempt.score}%</p>
+          )}
+        </div>
+      )}
+
       <div className="relative mt-4 flex items-center justify-between gap-2 border-t pt-4" style={{ borderColor: "var(--color-border)" }}>
+        {isAdmin ? (
+          <>
+            <span className="text-xs text-slate-500">Admin manages catalog details from this page</span>
+          </>
+        ) : (
+        <>
         {isEnrolled ? (
           <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-400">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -165,7 +187,7 @@ function CertCard({ cert, enrolled, onEnroll, onSave, enrolling }) {
           <span className="text-xs text-slate-500">Open enrollment</span>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           {!isEnrolled && !isSaved && (
             <>
               <Button
@@ -177,24 +199,62 @@ function CertCard({ cert, enrolled, onEnroll, onSave, enrolling }) {
                 Save for Later
               </Button>
               <Button
+                variant="ghost"
+                className="!py-1.5 !px-3 !text-xs"
+                loading={enrolling === `eligibility-${cert.id}`}
+                onClick={() => onCheckEligibility(cert.id)}
+              >
+                Check Eligibility
+              </Button>
+              <Button
+                variant="ghost"
+                className="!py-1.5 !px-3 !text-xs"
+                loading={enrolling === `test-${cert.id}`}
+                onClick={() => onStartTest(cert.id)}
+              >
+                Take Test
+              </Button>
+              <Button
                 className="!py-1.5 !px-3 !text-xs"
                 loading={enrolling === `enroll-${cert.id}`}
+                disabled={!canEnroll}
                 onClick={() => onEnroll(cert.id)}
               >
-                Enroll Now
+                {canEnroll ? "Enroll Now" : "Pass Test"}
               </Button>
             </>
           )}
           {isSaved && (
-            <Button
-              className="!py-1.5 !px-3 !text-xs"
-              loading={enrolling === `enroll-${cert.id}`}
-              onClick={() => onEnroll(cert.id)}
-            >
-              Enroll Now
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                className="!py-1.5 !px-3 !text-xs"
+                loading={enrolling === `eligibility-${cert.id}`}
+                onClick={() => onCheckEligibility(cert.id)}
+              >
+                Check Eligibility
+              </Button>
+              <Button
+                variant="ghost"
+                className="!py-1.5 !px-3 !text-xs"
+                loading={enrolling === `test-${cert.id}`}
+                onClick={() => onStartTest(cert.id)}
+              >
+                Take Test
+              </Button>
+              <Button
+                className="!py-1.5 !px-3 !text-xs"
+                loading={enrolling === `enroll-${cert.id}`}
+                disabled={!canEnroll}
+                onClick={() => onEnroll(cert.id)}
+              >
+                {canEnroll ? "Enroll Now" : "Pass Test"}
+              </Button>
+            </>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );
@@ -224,6 +284,10 @@ export function CertificationsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [enrolling, setEnrolling] = useState(null); // "enroll-<id>" | "save-<id>"
+  const [eligibility, setEligibility] = useState({});
+  const [testModal, setTestModal] = useState(null);
+  const [testAnswers, setTestAnswers] = useState({});
+  const [testResult, setTestResult] = useState(null);
 
   // Data
   const { data: certs, loading, error, reload } = useAsyncData(
@@ -275,6 +339,62 @@ export function CertificationsPage() {
     }
   }
 
+  async function handleEligibility(certId) {
+    setEnrolling(`eligibility-${certId}`);
+    try {
+      const { data } = await certificationsApi.eligibility(certId);
+      setEligibility((prev) => ({ ...prev, [certId]: data }));
+      toast.success(data.test_attempt?.passed ? "Eligibility test already passed." : "Take the test before enrolling.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Eligibility check failed");
+    } finally {
+      setEnrolling(null);
+    }
+  }
+
+  async function startEligibilityTest(certId) {
+    setEnrolling(`test-${certId}`);
+    setTestResult(null);
+    setTestAnswers({});
+    try {
+      const { data } = await certificationsApi.eligibilityTest(certId);
+      setTestModal(data);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to load test");
+    } finally {
+      setEnrolling(null);
+    }
+  }
+
+  async function submitEligibilityTest() {
+    if (!testModal) return;
+    setSubmitting(true);
+    try {
+      const { data } = await certificationsApi.submitEligibilityTest(testModal.certification_id, { answers: testAnswers });
+      setTestResult(data);
+      setEligibility((prev) => ({
+        ...prev,
+        [testModal.certification_id]: {
+          eligible: data.passed,
+          test_passed: data.passed,
+          status: data.passed ? "eligible" : "review_required",
+          message: data.message,
+          test_attempt: {
+            id: data.attempt_id,
+            score: data.score,
+            passed: data.passed,
+            status: data.status,
+          },
+        },
+      }));
+      toast.success(data.message);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to submit test");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   // ── Admin CRUD ──────────────────────────────────────────────────────────
   async function submitCert(e) {
     e.preventDefault();
@@ -320,6 +440,24 @@ export function CertificationsPage() {
     }
   }
 
+  async function exportCertifications() {
+    setSubmitting(true);
+    try {
+      const { data } = await certificationsApi.exportCsv();
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "certifications-with-drives.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Certification export downloaded.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Export failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* ── Page header ── */}
@@ -329,9 +467,14 @@ export function CertificationsPage() {
           <p className="mt-1 text-slate-400">Explore and enroll in certification programs</p>
         </div>
         {isAdmin && (
-          <Button onClick={() => { setForm(emptyCert); setSelectedId(null); setModal("create"); }}>
-            + New Certification
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" loading={submitting} onClick={exportCertifications}>
+              Export Certificates
+            </Button>
+            <Button onClick={() => { setForm(emptyCert); setSelectedId(null); setModal("create"); }}>
+              + New Certification
+            </Button>
+          </div>
         )}
       </div>
 
@@ -425,7 +568,11 @@ export function CertificationsPage() {
                 enrolled={enrollmentMap[cert.id]}
                 onEnroll={handleEnroll}
                 onSave={handleSave}
+                onCheckEligibility={handleEligibility}
+                onStartTest={startEligibilityTest}
+                eligibility={eligibility[cert.id]}
                 enrolling={enrolling}
+                isAdmin={isAdmin}
               />
             ))
           )}
@@ -474,7 +621,7 @@ export function CertificationsPage() {
         open={modal === "create" || modal === "edit"}
         title={modal === "create" ? "Create Certification" : "Edit Certification"}
         onClose={() => setModal(null)}
-        size="lg"
+        size="md"
         footer={
           <>
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
@@ -527,6 +674,61 @@ export function CertificationsPage() {
             <textarea className={`${inputClass} min-h-[72px]`} value={form.prerequisites} onChange={(e) => setForm({ ...form, prerequisites: e.target.value })} placeholder="e.g. Cloud Fundamentals&#10;2+ years experience" />
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!testModal}
+        title={testModal?.title || "Eligibility test"}
+        onClose={() => setTestModal(null)}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setTestModal(null)}>Close Test</Button>
+            {!isAdmin && !testResult && (
+              <Button
+                loading={submitting}
+                disabled={!(testModal?.questions || []).every((q) => testAnswers[q.id])}
+                onClick={submitEligibilityTest}
+              >
+                Submit Test
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="pr-8 text-sm leading-6 text-slate-400">
+            Answer these basic readiness questions for this certification. They stay intentionally simple so you can confirm foundation-level knowledge before enrolling.
+          </p>
+          {testResult && (
+            <div className={`rounded-xl border p-3 ${testResult.passed ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200" : "border-amber-500/30 bg-amber-500/10 text-amber-200"}`}>
+              Score: {testResult.score}% · {testResult.message}
+            </div>
+          )}
+          {testResult && (
+            <Button className="!px-3 !py-1.5 !text-xs" variant="ghost" onClick={() => setTestModal(null)}>Close Test</Button>
+          )}
+          {(testModal?.questions || []).map((q) => (
+            <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-sm font-semibold leading-5 text-white">{q.question}</div>
+              <div className="mt-2 grid gap-2">
+                {q.options.map((option) => (
+                  <label key={option} className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition hover:bg-white/[0.07]">
+                    <input
+                      type="radio"
+                      name={q.id}
+                      disabled={isAdmin || !!testResult}
+                      checked={testAnswers[q.id] === option}
+                      onChange={() => setTestAnswers((prev) => ({ ...prev, [q.id]: option }))}
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+              {isAdmin && <div className="mt-2 text-xs text-indigo-300">Expected answer: {q.answer}</div>}
+            </div>
+          ))}
+        </div>
       </Modal>
 
       {/* ── Delete modal ── */}

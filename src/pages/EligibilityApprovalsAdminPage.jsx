@@ -1,0 +1,283 @@
+import React, { useState } from "react";
+import { useAsyncData } from "../hooks/useAsyncData.js";
+import { eligibilityAdminApi, registrationsApi } from "../services/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import { useToast } from "../context/ToastContext.jsx";
+import { Card } from "../components/Card.jsx";
+import { Button } from "../components/Button.jsx";
+import { Modal } from "../components/Modal.jsx";
+import { Table } from "../components/Table.jsx";
+
+export function EligibilityApprovalsAdminPage() {
+  const { isAdmin } = useAuth();
+  const toast = useToast();
+
+  const [evalRegId, setEvalRegId] = useState("");
+  const [regFilters, setRegFilters] = useState({ drive_id: "", q: "" });
+  const [approvalsFilter, setApprovalsFilter] = useState({ status: "pending", drive_id: "" });
+  const registrations = useAsyncData(
+    () =>
+      isAdmin
+        ? registrationsApi
+            .adminList({
+              drive_id: regFilters.drive_id ? Number(regFilters.drive_id) : undefined,
+              q: regFilters.q || undefined,
+            })
+            .then((r) => r.data)
+        : Promise.resolve([]),
+    [isAdmin, regFilters.drive_id, regFilters.q]
+  );
+
+  const approvals = useAsyncData(
+    () =>
+      isAdmin
+        ? eligibilityAdminApi
+            .approvalsList({
+              status: approvalsFilter.status || undefined,
+              drive_id: approvalsFilter.drive_id ? Number(approvalsFilter.drive_id) : undefined,
+            })
+            .then((r) => r.data)
+        : Promise.resolve([]),
+    [isAdmin, approvalsFilter.status, approvalsFilter.drive_id]
+  );
+
+  const [decide, setDecide] = useState(null);
+  const [approvalOpen, setApprovalOpen] = useState(null);
+  const [decision, setDecision] = useState({ status: "approved", decision_notes: "" });
+  const [approvalForm, setApprovalForm] = useState({ level: 1, approver_email: "" });
+  const [busy, setBusy] = useState(false);
+
+  const inputClass =
+    "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
+
+  async function evaluate() {
+    if (!evalRegId) return;
+    setBusy(true);
+    try {
+      await eligibilityAdminApi.evaluate({ registration_id: Number(evalRegId) });
+      toast.success("Eligibility evaluated. If approval is needed, a pending approval is created automatically.");
+      approvals.reload();
+      registrations.reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createApproval(e) {
+    e.preventDefault();
+    if (!approvalOpen) return;
+    setBusy(true);
+    try {
+      await eligibilityAdminApi.approvalsCreate({
+        registration_id: approvalOpen.id,
+        level: Number(approvalForm.level) || 1,
+        approver_email: approvalForm.approver_email,
+      });
+      toast.success("Approval request created.");
+      setApprovalOpen(null);
+      approvals.reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideNow(e) {
+    e.preventDefault();
+    if (!decide) return;
+    setBusy(true);
+    try {
+      await eligibilityAdminApi.approvalsDecide(decide.id, decision);
+      toast.success("Decision saved.");
+      setDecide(null);
+      approvals.reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-2xl font-bold text-white">Eligibility & approvals</h2>
+        <p className="text-slate-400">Admin workflow: evaluate rules → pending approvals → decide</p>
+      </div>
+
+      <Card title="Evaluate eligibility" subtitle="POST /admin/eligibility/evaluate">
+        <p className="mb-4 text-sm leading-6 text-slate-400">
+          Use a Registration ID from the table below. Evaluation reads the registration's drive, applies the drive eligibility rules, updates registration status, and creates a pending approval when manual review is required.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs text-slate-500">Registration ID</label>
+            <input className={inputClass} value={evalRegId} onChange={(e) => setEvalRegId(e.target.value)} />
+          </div>
+          <Button onClick={evaluate} loading={busy} variant="ghost">
+            Evaluate
+          </Button>
+        </div>
+      </Card>
+
+      <Card title="Registrations needing evaluation" subtitle="Registration IDs come from this table">
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <div>
+            <label className="text-xs text-slate-500">Drive ID</label>
+            <input className={inputClass} value={regFilters.drive_id} onChange={(e) => setRegFilters({ ...regFilters, drive_id: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Search</label>
+            <input className={inputClass} value={regFilters.q} onChange={(e) => setRegFilters({ ...regFilters, q: e.target.value })} placeholder="email/name/emp_id" />
+          </div>
+          <div className="flex items-end">
+            <Button variant="ghost" onClick={() => registrations.reload()}>Refresh</Button>
+          </div>
+        </div>
+        <Table
+          columns={[
+            { key: "id", label: "Reg ID" },
+            { key: "drive_id", label: "Drive" },
+            { key: "candidate_name", label: "Name" },
+            { key: "candidate_email", label: "Email" },
+            { key: "manager_email", label: "Manager" },
+            { key: "status", label: "Status" },
+            {
+              key: "eval",
+              label: "",
+              render: (r) => (
+                <div className="flex gap-2">
+                  <Button className="!py-1 !text-xs" variant="ghost" onClick={() => setEvalRegId(String(r.id))}>Use ID</Button>
+                  <Button
+                    className="!py-1 !text-xs"
+                    variant="ghost"
+                    onClick={() => {
+                      setApprovalOpen(r);
+                      setApprovalForm({ level: 1, approver_email: r.manager_email || "" });
+                    }}
+                  >
+                    Request Approval
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
+          rows={registrations.data || []}
+        />
+      </Card>
+
+      <Card title="Approvals inbox" subtitle="GET /admin/eligibility/approvals">
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
+          <div>
+            <label className="text-xs text-slate-500">Status</label>
+            <select className={inputClass} value={approvalsFilter.status} onChange={(e) => setApprovalsFilter({ ...approvalsFilter, status: e.target.value })}>
+              <option value="pending">pending</option>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Drive ID</label>
+            <input className={inputClass} value={approvalsFilter.drive_id} onChange={(e) => setApprovalsFilter({ ...approvalsFilter, drive_id: e.target.value })} />
+          </div>
+          <div className="flex items-end">
+            <Button variant="ghost" onClick={() => approvals.reload()}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+        <Table
+          columns={[
+            { key: "id", label: "ID" },
+            { key: "registration_id", label: "Reg" },
+            { key: "drive_id", label: "Drive" },
+            { key: "level", label: "Lvl" },
+            { key: "status", label: "Status" },
+            { key: "approver_email", label: "Approver" },
+            {
+              key: "a",
+              label: "",
+              render: (r) =>
+                r.status === "pending" ? (
+                  <Button
+                    variant="ghost"
+                    className="!py-1 !text-xs"
+                    onClick={() => {
+                      setDecide(r);
+                      setDecision({ status: "approved", decision_notes: "" });
+                    }}
+                  >
+                    Decide
+                  </Button>
+                ) : (
+                  <span className="text-xs text-slate-500">—</span>
+                ),
+            },
+          ]}
+          rows={approvals.data || []}
+        />
+      </Card>
+
+      <Modal
+        open={!!decide}
+        title={`Decide approval #${decide?.id}`}
+        onClose={() => setDecide(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDecide(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="decide-form" loading={busy}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <form id="decide-form" onSubmit={decideNow} className="space-y-3">
+          <div>
+            <label className="text-xs text-slate-500">Decision</label>
+            <select className={inputClass} value={decision.status} onChange={(e) => setDecision({ ...decision, status: e.target.value })}>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Notes</label>
+            <textarea className={`${inputClass} min-h-[90px]`} value={decision.decision_notes} onChange={(e) => setDecision({ ...decision, decision_notes: e.target.value })} />
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!approvalOpen}
+        title={`Create approval for registration #${approvalOpen?.id}`}
+        onClose={() => setApprovalOpen(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setApprovalOpen(null)}>Cancel</Button>
+            <Button type="submit" form="approval-create" loading={busy}>Create</Button>
+          </>
+        }
+      >
+        <form id="approval-create" onSubmit={createApproval} className="space-y-3">
+          <div>
+            <label className="text-xs text-slate-500">Approval level</label>
+            <select className={inputClass} value={approvalForm.level} onChange={(e) => setApprovalForm({ ...approvalForm, level: Number(e.target.value) })}>
+              <option value={1}>Level 1</option>
+              <option value={2}>Level 2</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Approver email</label>
+            <input className={inputClass} type="email" value={approvalForm.approver_email} onChange={(e) => setApprovalForm({ ...approvalForm, approver_email: e.target.value })} required />
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+

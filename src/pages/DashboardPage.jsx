@@ -1,322 +1,555 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useAuth } from "../context/AuthContext.jsx";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { dashboardApi } from "../services/api.js";
+import { adminApi, dashboardApi } from "../services/api.js";
 import { CardSkeleton } from "../components/Skeleton.jsx";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, Sector } from "recharts";
 import { ActivityHeatmap } from "../components/ActivityHeatmap.jsx";
 
-// Icons
-const RibbonIcon = () => (
-  <svg className="w-8 h-8 text-fuchsia-400 group-hover:text-fuchsia-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-  </svg>
-);
+const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#a855f7"];
+const surface = "rounded-2xl border border-white/10 bg-white/[0.03] shadow-xl shadow-black/20 backdrop-blur-xl";
+const tooltipStyle = { background: "#0f172a", border: "1px solid #ffffff20", color: "#fff" };
 
-const ClockIcon = () => (
-  <svg className="w-8 h-8 text-orange-400 group-hover:text-orange-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
+function ShellHeader({ label, title, subtitle, actions }) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-6 text-white shadow-2xl shadow-black/20 backdrop-blur-xl">
+      <div className="flex flex-wrap items-start justify-between gap-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-300">{label}</p>
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight md:text-4xl">{title}</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{subtitle}</p>
+        </div>
+        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      </div>
+    </section>
+  );
+}
 
-const CheckIcon = () => (
-  <svg className="w-8 h-8 text-emerald-400 group-hover:text-emerald-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
+function SummaryCard({ label, value, hint, accent = "blue" }) {
+  const accents = {
+    blue: "bg-indigo-500/15 text-indigo-200 ring-indigo-400/20",
+    green: "bg-emerald-500/15 text-emerald-200 ring-emerald-400/20",
+    amber: "bg-amber-500/15 text-amber-200 ring-amber-400/20",
+    violet: "bg-fuchsia-500/15 text-fuchsia-200 ring-fuchsia-400/20",
+    rose: "bg-rose-500/15 text-rose-200 ring-rose-400/20",
+    cyan: "bg-cyan-500/15 text-cyan-200 ring-cyan-400/20",
+  };
+  return (
+    <div className={`${surface} p-5`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+          <div className="mt-3 font-display text-3xl font-bold tracking-tight text-white">{value}</div>
+        </div>
+        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-bold ring-1 ${accents[accent]}`}>
+          {String(label).slice(0, 2)}
+        </span>
+      </div>
+      {hint && <p className="mt-3 text-sm text-slate-400">{hint}</p>}
+    </div>
+  );
+}
 
-const TrendIcon = () => (
-  <svg className="w-8 h-8 text-indigo-400 group-hover:text-indigo-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-  </svg>
-);
+function Panel({ title, subtitle, children, action }) {
+  return (
+    <section className={`${surface} p-5`}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-display text-base font-bold text-white">{title}</h3>
+          {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-const CalendarIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-  </svg>
-);
+function ChartPanel({ title, subtitle, children }) {
+  return (
+    <Panel title={title} subtitle={subtitle}>
+      <div className="h-[310px]">{children}</div>
+    </Panel>
+  );
+}
 
-export function DashboardPage() {
+function MiniBars({ rows }) {
+  const max = Math.max(1, ...rows.map((row) => row.value || 0));
+  return (
+    <div className="space-y-3">
+      {rows.map((row, index) => (
+        <div key={row.name} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-semibold text-slate-200">{row.name}</span>
+            <span className="font-display text-lg font-bold text-white">{row.value || 0}</span>
+          </div>
+          <div className="mt-2 h-2 rounded-full bg-white/10">
+            <div
+              className="h-2 rounded-full"
+              style={{ width: `${((row.value || 0) / max) * 100}%`, backgroundColor: PALETTE[index % PALETTE.length] }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SegmentedTabs({ tabs, active, onChange }) {
+  return (
+    <div className="flex gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-white/[0.03] p-1 shadow-xl shadow-black/10">
+      {tabs.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition ${
+            active === key
+              ? "bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white shadow-sm"
+              : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function StatusPill({ children, tone = "slate" }) {
+  const tones = {
+    slate: "bg-slate-500/15 text-slate-200",
+    green: "bg-emerald-500/15 text-emerald-200",
+    amber: "bg-amber-500/15 text-amber-200",
+    red: "bg-rose-500/15 text-rose-200",
+    blue: "bg-indigo-500/15 text-indigo-200",
+  };
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>{children}</span>;
+}
+
+function EmptyText({ children }) {
+  return <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm text-slate-400">{children}</p>;
+}
+
+function ActionLink({ to, children }) {
+  return (
+    <Link
+      to={to}
+      className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-indigo-400/40 hover:bg-white/[0.06] hover:text-white"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function AdminOverview() {
+  const overview = useAsyncData(() => adminApi.brdOverview().then((r) => r.data), []);
+  const heatmap = useAsyncData(() => adminApi.activityHeatmap().then((r) => r.data), []);
+  const [tab, setTab] = useState("overview");
+
+  if (overview.loading && !overview.data) return <CardSkeleton />;
+  const data = overview.data || {};
+  const metrics = data.metrics || {};
+  const charts = data.charts || {};
+
+  const adminLinks = [
+    ["Applications", "/admin-brd/registrations"],
+    ["Drives", "/admin-brd/drives"],
+    ["Documents", "/uploads"],
+    ["Vouchers", "/vouchers"],
+    ["Results", "/admin-brd/results"],
+    ["Users", "/admin"],
+    ["AI Hub", "/ai"],
+    ["Reports", "/dashboard"],
+  ];
+
+  return (
+    <div className="space-y-6 text-slate-100">
+      <ShellHeader
+        label="Admin Workspace"
+        title="Certification Operations Dashboard"
+        subtitle="A Figma-style control center for applications, drives, eligibility tests, vouchers, GitHub activity, documents, analytics, and admin audit events. Every number below is read from your backend APIs."
+        actions={
+          <>
+            <Link to="/admin-brd/registrations" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-950/30">Applications</Link>
+            <Link to="/admin-brd/drives" className="rounded-xl border border-white/20 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white">Manage Drives</Link>
+          </>
+        }
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <SummaryCard label="Active Users" value={metrics.active_users ?? 0} hint="Enabled platform accounts" accent="blue" />
+        <SummaryCard label="Certifications" value={metrics.active_certifications ?? 0} hint="Active enrollment portfolio" accent="cyan" />
+        <SummaryCard label="Reviews" value={metrics.pending_reviews ?? 0} hint="Admin review queue" accent="amber" />
+        <SummaryCard label="Vouchers" value={metrics.issued_vouchers ?? 0} hint={`${metrics.used_vouchers ?? 0} redeemed`} accent="violet" />
+        <SummaryCard label="Eligible" value={metrics.eligible_users ?? 0} hint={`${metrics.avg_test_score ?? 0}% average score`} accent="green" />
+        <SummaryCard label="Success" value={`${metrics.success_rate ?? 0}%`} hint="Completed enrollments" accent="rose" />
+      </div>
+
+      <SegmentedTabs
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          ["overview", "Overview"],
+          ["applications", "Applications"],
+          ["eligibility", "Eligibility"],
+          ["github", "GitHub Activity"],
+          ["insights", "AI & Reports"],
+        ]}
+      />
+
+      {tab === "overview" && (
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <ChartPanel title="Users Per Certification" subtitle="Real enrollment counts grouped by certification">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={charts.users_per_certification || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff15" />
+                <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={80} />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="users" fill="#6366f1" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+
+          <Panel title="Admin Modules" subtitle="Figma model navigation blocks">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {adminLinks.map(([label, to]) => <ActionLink key={label} to={to}>{label}</ActionLink>)}
+            </div>
+          </Panel>
+
+          <ChartPanel title="Voucher Status" subtitle="Voucher lifecycle distribution from DB">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={charts.voucher_status || []} dataKey="value" nameKey="name" innerRadius={70} outerRadius={110} paddingAngle={4}>
+                  {(charts.voucher_status || []).map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+
+          <Panel title="Exam Eligibility Outcomes" subtitle="Counts from eligibility tests before users enroll for exams">
+            <MiniBars rows={charts.eligibility_tests || []} />
+          </Panel>
+
+          <Panel title="Audit Stream" subtitle="Latest admin-side audit events">
+            <ActivityRows rows={data.admin_activity || []} />
+          </Panel>
+        </div>
+      )}
+
+      {tab === "applications" && (
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <Panel title="Application Status" subtitle="Current admin review queue">
+            {(data.review_queue || []).length === 0 ? (
+              <EmptyText>No pending reviews in the database.</EmptyText>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">User</th>
+                      <th className="px-4 py-3">Certification</th>
+                      <th className="px-4 py-3">Progress</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {data.review_queue.map((row) => (
+                      <tr key={row.id} className="transition hover:bg-white/[0.03]">
+                        <td className="px-4 py-3 text-slate-300">{row.user}</td>
+                        <td className="px-4 py-3 font-medium text-white">{row.certification}</td>
+                        <td className="px-4 py-3 text-slate-400">{row.progress_percent}%</td>
+                        <td className="px-4 py-3"><StatusPill tone="amber">{row.status}</StatusPill></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Workflow Queue" subtitle="BRD operational sequence">
+            <div className="space-y-3">
+              {["Review applications", "Approve documents", "Assign vouchers", "Update results", "Monitor analytics"].map((step, index) => (
+                <div key={step} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/20 text-sm font-bold text-indigo-200">{index + 1}</span>
+                  <span className="text-sm font-semibold text-slate-200">{step}</span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+      )}
+
+      {tab === "eligibility" && (
+        <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <ChartPanel title="Eligibility Tests" subtitle="Stored user test outcomes">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={charts.eligibility_tests || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff15" />
+                <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="value" fill="#10b981" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+
+          <Panel title="Recent Test Attempts" subtitle="Certificate-specific user readiness attempts">
+            {(data.eligibility_activity || []).length === 0 ? (
+              <EmptyText>No eligibility attempts are stored yet.</EmptyText>
+            ) : (
+              <div className="space-y-3">
+                {data.eligibility_activity.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h4 className="truncate font-semibold text-white">{item.certification}</h4>
+                        <p className="truncate text-sm text-slate-400">{item.user}</p>
+                      </div>
+                      <StatusPill tone={item.passed ? "green" : "amber"}>{item.score}%</StatusPill>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === "github" && (
+        <Panel title="GitHub Activity" subtitle="Contribution calendar across users, enrollments, tasks, vouchers, and eligibility tests">
+          <ActivityHeatmap heatmapData={heatmap.data?.heatmap || {}} />
+        </Panel>
+      )}
+
+      {tab === "insights" && (
+        <div className="grid gap-6 xl:grid-cols-3">
+          {(data.tooling || []).map((tool) => (
+            <Panel key={tool.name} title={tool.name} subtitle="BRD platform capability">
+              <p className="text-sm leading-6 text-slate-400">{tool.use}</p>
+            </Panel>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityRows({ rows }) {
+  if (!rows.length) return <EmptyText>No admin activity yet.</EmptyText>;
+  return (
+    <div className="space-y-3">
+      {rows.map((item) => (
+        <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-semibold text-white">{item.action}</h4>
+            <StatusPill tone="blue">{item.entity}</StatusPill>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">User #{item.actor_user_id || "system"} - {new Date(item.created_at).toLocaleString()}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function UserOverview() {
   const dash = useAsyncData(() => dashboardApi.me().then((r) => r.data), []);
   const charts = useAsyncData(() => dashboardApi.charts().then((r) => r.data), []);
   const heatmap = useAsyncData(() => dashboardApi.heatmap().then((r) => r.data), []);
+  const [tab, setTab] = useState("overview");
 
-  const [activeIndex, setActiveIndex] = React.useState(0);
-  const onPieEnter = (_, index) => {
-    setActiveIndex(index);
-  };
+  const d = dash.data || {};
+  const status = d.charts?.certification_status || {};
+  const total = d.enrollments?.total || 0;
+  const completed = status.completed || 0;
+  const pieData = [
+    { name: "Completed", value: status.completed || 0 },
+    { name: "Pending", value: status.pending || 0 },
+    { name: "In Progress", value: status.in_progress || 0 },
+    { name: "Not Started", value: status.not_started || 0 },
+  ].filter((x) => x.value > 0);
+  const currentCerts = d.current_certifications || [];
+  const nextCert = currentCerts[0];
+  const insight = useMemo(() => {
+    if (!total) return "Browse certifications and take the eligibility test to start your journey.";
+    if (completed === total) return "All enrolled certifications are complete. Check available certifications for the next goal.";
+    return `${Math.max(0, total - completed)} certification${total - completed === 1 ? "" : "s"} still need attention.`;
+  }, [completed, total]);
 
-  if (dash.loading && !dash.data) {
-    return (
-      <div className="grid gap-6 md:grid-cols-2">
-        <CardSkeleton />
-        <CardSkeleton />
-      </div>
-    );
-  }
-
-  if (dash.error) {
-    return <div className="text-rose-300">{dash.error}</div>;
-  }
-
-  const d = dash.data;
-  const ch = charts.data;
-
-  // Derive stats
-  const totalCerts = d?.enrollments?.total || 0;
-  const inProgress = d?.enrollments?.active || 0;
-  const completed = d?.charts?.certification_status?.completed || 0;
-  const successRate = totalCerts > 0 ? Math.round((completed / totalCerts) * 100) : 0;
-
-  // Chart configs - adapted for dark theme
-  const pieData = d?.charts?.certification_status ? [
-    { name: 'Completed', value: d.charts.certification_status.completed || 0, color: '#10b981' }, // emerald-500
-    { name: 'Pending', value: d.charts.certification_status.pending || 0, color: '#f59e0b' },   // amber-500
-    { name: 'In Progress', value: d.charts.certification_status.in_progress || 0, color: '#3b82f6' }, // blue-500
-    { name: 'Not Started', value: d.charts.certification_status.not_started || 0, color: '#64748b' }  // slate-500
-  ].filter(item => item.value > 0) : [];
-
-  const renderActiveShape = (props) => {
-    const RADIAN = Math.PI / 180;
-    const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props;
-    const sin = Math.sin(-RADIAN * midAngle);
-    const cos = Math.cos(-RADIAN * midAngle);
-    const sx = cx + (outerRadius + 10) * cos;
-    const sy = cy + (outerRadius + 10) * sin;
-    const mx = cx + (outerRadius + 30) * cos;
-    const my = cy + (outerRadius + 30) * sin;
-    const ex = mx + (cos >= 0 ? 1 : -1) * 22;
-    const ey = my;
-    const textAnchor = cos >= 0 ? 'start' : 'end';
-
-    return (
-      <g>
-        <text x={cx} y={cy} dy={8} textAnchor="middle" fill="#fff" className="font-bold text-xl drop-shadow-md">
-          {payload.name}
-        </text>
-        <text x={cx} y={cy} dy={28} textAnchor="middle" fill="#94a3b8" className="text-xs">
-          {value} Total
-        </text>
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={innerRadius}
-          outerRadius={outerRadius + 8}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={fill}
-          style={{ filter: 'drop-shadow(0px 0px 8px rgba(255,255,255,0.3))' }}
-        />
-        <Sector
-          cx={cx}
-          cy={cy}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          innerRadius={outerRadius + 12}
-          outerRadius={outerRadius + 15}
-          fill={fill}
-        />
-      </g>
-    );
-  };
+  if (dash.loading && !dash.data) return <CardSkeleton />;
 
   return (
-    <div className="space-y-8 pb-12">
-      
-      {/* Header */}
-      <div>
-        <h2 className="font-display text-2xl font-bold text-white">Welcome{d?.user?.full_name ? `, ${d.user.full_name}` : ""}</h2>
-        <p className="text-slate-400">Your certification progress at a glance.</p>
+    <div className="space-y-6 text-slate-100">
+      <ShellHeader
+        label="User Dashboard"
+        title="Personal Progress View"
+        subtitle="A private view for your certification movement, current application state, activity rhythm, and AI-style guidance. Admin-only user and platform counts stay out of this workspace."
+        actions={
+          <>
+            <Link to="/certifications" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-950/30">Browse Certifications</Link>
+            <Link to="/uploads" className="rounded-xl border border-white/20 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white">Upload Docs</Link>
+          </>
+        }
+      />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {[
+          ["Application Focus", nextCert ? `Continue ${nextCert.title}` : "Choose a certification to begin"],
+          ["Preparation Flow", "Use tasks, uploads, and reminders to keep the journey moving"],
+          ["AI Guidance", insight],
+        ].map(([label, body]) => (
+          <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-xl shadow-black/10 transition hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-white/[0.06]">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">{label}</p>
+            <p className="mt-3 text-sm leading-6 text-slate-300">{body}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Top Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-        {/* Card 1 */}
-        <div className="group relative overflow-hidden bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-fuchsia-500/50 hover:bg-white/[0.05] transition-all duration-300">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-2xl group-hover:bg-fuchsia-500/20 transition-all duration-500"></div>
-          <div className="flex justify-between items-start relative z-10">
-            <div className="p-2 bg-fuchsia-500/10 rounded-xl"><RibbonIcon /></div>
-            <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Total</span>
-          </div>
-          <div className="mt-4 relative z-10">
-            <div className="text-4xl font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-fuchsia-400 group-hover:to-pink-400 transition-all">{totalCerts}</div>
-            <div className="text-sm text-slate-400 mt-1">Total Certifications</div>
-          </div>
-        </div>
+      <SegmentedTabs
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          ["overview", "Overview"],
+          ["certifications", "Current Certifications"],
+          ["github", "GitHub Activity"],
+          ["insights", "AI Insights"],
+        ]}
+      />
 
-        {/* Card 2 */}
-        <div className="group relative overflow-hidden bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-orange-500/50 hover:bg-white/[0.05] transition-all duration-300">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl group-hover:bg-orange-500/20 transition-all duration-500"></div>
-          <div className="flex justify-between items-start relative z-10">
-            <div className="p-2 bg-orange-500/10 rounded-xl"><ClockIcon /></div>
-            <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Active</span>
-          </div>
-          <div className="mt-4 relative z-10">
-            <div className="text-4xl font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-orange-400 group-hover:to-amber-400 transition-all">{inProgress}</div>
-            <div className="text-sm text-slate-400 mt-1">In Progress</div>
-          </div>
-        </div>
+      {tab === "overview" && (
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <ChartPanel title="Monthly Trend" subtitle="Enrollment and completion trend from your account">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={charts.data?.monthly_progress || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff15" />
+                <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area type="monotone" dataKey="enrollments" stroke="#6366f1" fill="#6366f155" />
+                <Area type="monotone" dataKey="completed" stroke="#10b981" fill="#10b98155" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </ChartPanel>
 
-        {/* Card 3 */}
-        <div className="group relative overflow-hidden bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-emerald-500/50 hover:bg-white/[0.05] transition-all duration-300">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all duration-500"></div>
-          <div className="flex justify-between items-start relative z-10">
-            <div className="p-2 bg-emerald-500/10 rounded-xl"><CheckIcon /></div>
-            <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Done</span>
-          </div>
-          <div className="mt-4 relative z-10">
-            <div className="text-4xl font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-emerald-400 group-hover:to-teal-400 transition-all">{completed}</div>
-            <div className="text-sm text-slate-400 mt-1">Completed</div>
-          </div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="group relative overflow-hidden bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-indigo-500/50 hover:bg-white/[0.05] transition-all duration-300">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all duration-500"></div>
-          <div className="flex justify-between items-start relative z-10">
-            <div className="p-2 bg-indigo-500/10 rounded-xl"><TrendIcon /></div>
-            <span className="text-xs text-slate-400 font-medium tracking-wide uppercase">Rate</span>
-          </div>
-          <div className="mt-4 relative z-10">
-            <div className="text-4xl font-bold text-white group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-indigo-400 group-hover:to-cyan-400 transition-all">{successRate}%</div>
-            <div className="text-sm text-slate-400 mt-1">Success Rate</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Current Certification Progress */}
-      <div>
-        <h3 className="font-display text-xl font-bold text-white mb-4 tracking-tight">Current Certification Progress</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {(d?.current_certifications || []).map((cert, i) => (
-            <div key={i} className="group relative overflow-hidden bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-white/20 hover:bg-white/[0.05] transition-all duration-300">
-              <div className="flex justify-between items-start gap-4">
-                <h4 className="font-bold text-white line-clamp-2 leading-snug group-hover:text-indigo-300 transition-colors">{cert.title}</h4>
-                <span className="shrink-0 inline-flex items-center rounded-md bg-indigo-500/10 px-2 py-1 text-xs font-medium text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
-                  {cert.status}
-                </span>
-              </div>
-              <div className="mt-6">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-sm text-slate-400">Progress</span>
-                  <span className="text-sm font-bold text-white">{cert.progress}%</span>
-                </div>
-                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 rounded-full transition-all duration-1000 ease-out relative" style={{ width: `${cert.progress}%` }}>
-                    <div className="absolute top-0 right-0 bottom-0 left-0 bg-white/20 animate-pulse"></div>
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-400">
-                  <CalendarIcon />
-                  Due: {cert.due_date}
-                </div>
-              </div>
+          <Panel title="Application Status" subtitle="Your certification portfolio">
+            <div className="h-[310px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={105} paddingAngle={4}>
+                    {pieData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          ))}
-          {(!d?.current_certifications || d.current_certifications.length === 0) && (
-            <div className="col-span-full py-8 text-center text-slate-400 bg-white/[0.02] rounded-2xl border border-white/5 border-dashed">
-              You don't have any active certifications at the moment.
+          </Panel>
+
+          <Panel title="Next Certification" subtitle="Most recent active certification">
+            {nextCert ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-semibold text-white">{nextCert.title}</h4>
+                    <p className="mt-1 text-sm text-slate-400">{nextCert.provider}</p>
+                  </div>
+                  <StatusPill tone="blue">{nextCert.status}</StatusPill>
+                </div>
+                <div className="mt-4 h-2 rounded-full bg-white/10">
+                  <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${Math.min(100, nextCert.progress || 0)}%` }} />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {nextCert.progress || 0}% complete
+                  {nextCert.target_completion_date ? ` - Target: ${nextCert.target_completion_date}` : " - No target date set"}
+                </p>
+              </div>
+            ) : (
+              <EmptyText>No active certification is stored for your account.</EmptyText>
+            )}
+          </Panel>
+
+          <Panel title="Quick Actions" subtitle="Common certification tasks">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                ["Take eligibility test", "/certifications"],
+                ["Track enrollments", "/enrollments"],
+                ["Upload documents", "/uploads"],
+                ["View vouchers", "/vouchers"],
+              ].map(([label, to]) => <ActionLink key={label} to={to}>{label}</ActionLink>)}
+            </div>
+          </Panel>
+        </div>
+      )}
+
+      {tab === "certifications" && (
+        <Panel title="Current Certifications" subtitle="Active certification records from your dashboard API">
+          {currentCerts.length === 0 ? (
+            <EmptyText>No active certifications yet. Enroll from the certifications page after passing the eligibility test.</EmptyText>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-3">
+              {currentCerts.map((cert) => (
+                <Link key={cert.enrollment_id || cert.id} to={`/learning/${cert.enrollment_id}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-indigo-400/40 hover:bg-white/[0.06]">
+                  <StatusPill tone="blue">{cert.status}</StatusPill>
+                  <h4 className="mt-3 font-semibold text-white">{cert.title}</h4>
+                  <p className="mt-1 text-sm text-slate-400">{cert.provider}</p>
+                  <div className="mt-4 h-2 rounded-full bg-white/10">
+                    <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${Math.min(100, cert.progress || 0)}%` }} />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-500">{cert.progress || 0}% complete</p>
+                </Link>
+              ))}
             </div>
           )}
-        </div>
-      </div>
+        </Panel>
+      )}
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Line/Area Chart */}
-        <div className="bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-white/20 transition-all duration-300 flex flex-col">
-          <div className="mb-6">
-            <h3 className="font-display text-lg font-bold text-white tracking-tight">Monthly Progress Trend</h3>
-            <p className="text-xs text-slate-400 mt-1">Tracks your new enrollments and completed certifications over the last 6 months.</p>
-          </div>
-          <div className="flex-1 min-h-[300px] w-full">
-            {charts.loading ? (
-              <div className="w-full h-full flex items-center justify-center text-slate-400">Loading chart...</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ch?.monthly_progress || []} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorEnrollments" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff15" />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)' }}
-                    cursor={{ stroke: '#ffffff20', strokeWidth: 2 }}
-                    itemStyle={{ color: '#e2e8f0' }}
-                  />
-                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#cbd5e1' }} />
-                  <Area type="monotone" name="New Enrollments" dataKey="enrollments" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorEnrollments)" activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />
-                  <Area type="monotone" name="Completed Certs" dataKey="completed" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorCompleted)" activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Doughnut Chart */}
-        <div className="bg-white/[0.03] rounded-2xl p-6 shadow-sm border border-white/10 hover:border-white/20 transition-all duration-300 flex flex-col">
-          <div className="mb-2">
-            <h3 className="font-display text-lg font-bold text-white tracking-tight">Certification Status</h3>
-            <p className="text-xs text-slate-400 mt-1">Breakdown of your current overall certification portfolio.</p>
-          </div>
-          <div className="flex-1 min-h-[300px] relative flex flex-col items-center justify-center mt-4">
-             {pieData.length === 0 ? (
-                <div className="text-slate-400 text-sm">No data available</div>
-             ) : (
-               <>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      activeIndex={activeIndex}
-                      activeShape={renderActiveShape}
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={80}
-                      outerRadius={110}
-                      paddingAngle={5}
-                      dataKey="value"
-                      onMouseEnter={onPieEnter}
-                      stroke="none"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#cbd5e1', paddingTop: '20px' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </>
-             )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* GitHub-style Activity Heatmap */}
-      <div className="mt-8">
-        {heatmap.loading ? (
-          <div className="w-full h-[200px] bg-white/[0.02] rounded-xl flex items-center justify-center border border-white/5">
-            <span className="text-slate-500">Loading activity...</span>
-          </div>
-        ) : heatmap.error ? (
-          <div className="w-full p-4 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20">
-            Failed to load activity heatmap.
-          </div>
-        ) : (
+      {tab === "github" && (
+        <Panel title="GitHub Activity" subtitle="Your contribution calendar from enrollments, completions, tasks, and vouchers">
           <ActivityHeatmap heatmapData={heatmap.data?.heatmap || {}} />
-        )}
-      </div>
+        </Panel>
+      )}
+
+      {tab === "insights" && (
+        <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+          <Panel title="AI Insight Panel" subtitle="Derived from your real dashboard metrics">
+            <p className="text-sm leading-6 text-slate-400">{insight}</p>
+          </Panel>
+          <Panel title="Recommended Next Steps" subtitle="No generated sample data; these are workflow links">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["Browse", "/certifications"],
+                ["Tasks", "/tasks"],
+                ["Notifications", "/notifications"],
+              ].map(([label, to]) => <ActionLink key={label} to={to}>{label}</ActionLink>)}
+            </div>
+          </Panel>
+        </div>
+      )}
     </div>
   );
+}
+
+export function DashboardPage() {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <AdminOverview /> : <UserOverview />;
 }

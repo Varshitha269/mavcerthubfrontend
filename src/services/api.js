@@ -1,7 +1,7 @@
 /**
  * Central REST client for Maverick Certification Hub FastAPI backend.
  * Base path matches `app/api/api_v1.py` router prefix `/api/v1`.
- * In dev, Vite proxies `/api` → `http://127.0.0.1:8000`.
+ * In dev, Vite proxies `/api` to the FastAPI backend configured in `vite.config.js`.
  */
 import axios from "axios";
 
@@ -28,6 +28,7 @@ export const tokenStorage = {
 export const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
@@ -41,10 +42,11 @@ api.interceptors.request.use((config) => {
 /** OAuth2 password flow (form body) used by backend `/auth/login`. */
 export async function loginWithPassword(email, password) {
   const body = new URLSearchParams();
-  body.set("username", email);
+  body.set("username", email.trim().toLowerCase());
   body.set("password", password);
   const { data } = await axios.post(`${API_BASE}/auth/login`, body, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    timeout: 15000,
   });
   return data;
 }
@@ -74,7 +76,11 @@ export const profileApi = {
 
 export const certificationsApi = {
   list: (params) => api.get("/certifications/", { params }),
+  exportCsv: () => api.get("/certifications/export/csv", { responseType: "blob" }),
   get: (certId) => api.get(`/certifications/${certId}`),
+  eligibility: (certId) => api.get(`/certifications/${certId}/eligibility`),
+  eligibilityTest: (certId) => api.get(`/certifications/${certId}/eligibility-test`),
+  submitEligibilityTest: (certId, payload) => api.post(`/certifications/${certId}/eligibility-test/submit`, payload),
   create: (payload) => api.post("/certifications/", payload),
   patch: (certId, payload) => api.patch(`/certifications/${certId}`, payload),
   remove: (certId) => api.delete(`/certifications/${certId}`),
@@ -102,6 +108,7 @@ export const uploadsApi = {
   my: () => api.get("/uploads/me"),
   certificates: () => api.get("/uploads/certificates"),
   adminList: () => api.get("/uploads/"),
+  adminReview: (uploadId, payload) => api.post(`/uploads/${uploadId}/review`, payload),
   /** multipart: file + purpose + optional enrollment_id */
   uploadMe: (formData) =>
     api.post("/uploads/me", formData, {
@@ -111,6 +118,7 @@ export const uploadsApi = {
 };
 
 export const dashboardApi = {
+  home: () => api.get("/dashboard/home"),
   me: () => api.get("/dashboard/me"),
   charts: () => api.get("/dashboard/charts"),
   heatmap: () => api.get("/dashboard/heatmap"),
@@ -156,8 +164,43 @@ export const adminApi = {
   runReminders: () => api.post("/admin/reminders/run"),
   auditLogs: () => api.get("/admin/audit-logs"),
   emailLogs: () => api.get("/admin/email-logs"),
+  brdOverview: () => api.get("/admin/brd-overview"),
+  githubActivity: () => api.get("/admin/github-activity"),
+  activityHeatmap: () => api.get("/admin/activity-heatmap"),
 };
 
 export const exportsApi = {
   enrollmentsCsv: () => api.post("/admin/exports/enrollments"),
+  usersCsv: () => api.get("/admin/exports/users", { responseType: "blob" }),
+};
+
+// BRD APIs (new)
+export const drivesBrdApi = {
+  adminList: () => api.get("/admin/drives/"),
+  ensureDefaults: () => api.post("/admin/drives/ensure-defaults"),
+  adminPatch: (driveId, payload) => api.patch(`/admin/drives/${driveId}`, payload),
+  provisionRepo: (driveId) => api.post(`/admin/drives/${driveId}/provision-repo`),
+  reconduct: (driveId) => api.post(`/admin/drives/${driveId}/reconduct`),
+};
+
+export const registrationsApi = {
+  create: (payload) => api.post("/registrations/", payload),
+  my: () => api.get("/registrations/me"),
+  adminList: (params) => api.get("/registrations/", { params }),
+  adminPatch: (registrationId, payload) => api.patch(`/registrations/${registrationId}`, payload),
+  statusLookup: (params) => api.get("/registrations/status/lookup", { params }),
+};
+
+export const eligibilityAdminApi = {
+  evaluate: (payload) => api.post("/admin/eligibility/evaluate", payload),
+  approvalsList: (params) => api.get("/admin/eligibility/approvals", { params }),
+  approvalsCreate: (payload) => api.post("/admin/eligibility/approvals", payload),
+  approvalsDecide: (approvalId, payload) => api.post(`/admin/eligibility/approvals/${approvalId}/decide`, payload),
+};
+
+export const resultsAdminApi = {
+  list: (params) => api.get("/admin/results/", { params }),
+  create: (payload) => api.post("/admin/results/", payload),
+  importCsv: (csv) => api.post("/admin/results/import-csv", { csv }),
+  exportCsv: (params) => api.get("/admin/results/export-csv", { params, responseType: "blob" }),
 };

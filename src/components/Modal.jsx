@@ -22,10 +22,23 @@ export function Modal({ open, title, children, onClose, footer, size = "md" }) {
         onClick={onClose}
       />
       <div
-        className={`relative z-[81] w-full ${max} animate-fade-in rounded-2xl border border-white/10 bg-slate-950/95 p-6 shadow-2xl shadow-indigo-900/30 backdrop-blur-xl`}
+        className={`relative z-[81] max-h-[88vh] w-full ${max} animate-fade-in overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/95 p-6 shadow-2xl shadow-indigo-900/30 backdrop-blur-xl`}
         role="dialog"
         aria-modal="true"
       >
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close modal"
+            onClick={onClose}
+            className="absolute right-4 top-4 rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M6 6l12 12" />
+              <path d="M18 6 6 18" />
+            </svg>
+          </button>
+        )}
         {title && <h3 className="font-display text-xl font-semibold text-white">{title}</h3>}
         <div className={title ? "mt-4" : ""}>{children}</div>
         {footer && <div className="mt-6 flex justify-end gap-3">{footer}</div>}

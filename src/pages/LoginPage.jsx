@@ -31,7 +31,7 @@ export function LoginPage() {
     }
     setLoading(true);
     try {
-      await login(loginEmail, loginPassword);
+      await login(loginEmail.trim().toLowerCase(), loginPassword);
       toast.success("Signed in.");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Login failed");
@@ -48,7 +48,7 @@ export function LoginPage() {
     }
     setLoading(true);
     try {
-      await register({ email: regEmail, password: regPassword, full_name: regName || null });
+      await register({ email: regEmail.trim().toLowerCase(), password: regPassword, full_name: regName || null });
       toast.success("Account created! Please log in.");
       setRegEmail("");
       setRegPassword("");

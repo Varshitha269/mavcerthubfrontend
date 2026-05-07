@@ -244,3 +244,125 @@ select {
 [data-theme="light"] .divide-white\/5 > * + * {
   border-color: var(--color-border);
 }
+
+/* Home dashboard motion and cursor highlights */
+.mch-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms ease;
+  background: radial-gradient(
+    circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(34, 211, 238, 0.22),
+    rgba(99, 102, 241, 0.1) 24%,
+    transparent 48%
+  );
+}
+
+.mch-spotlight:hover::before {
+  opacity: 1;
+}
+
+.mch-fade-in {
+  animation: mchFadeIn 260ms ease both;
+}
+
+.mch-float-panel {
+  animation: mchFloatPanel 5s ease-in-out infinite;
+}
+
+.mch-formatted-message {
+  overflow-wrap: anywhere;
+}
+
+.mch-formatted-message > * + * {
+  margin-top: 0.75rem;
+}
+
+.mch-formatted-message h1,
+.mch-formatted-message h2,
+.mch-formatted-message h3,
+.mch-formatted-message h4 {
+  color: #ffffff;
+  font-family: Outfit, Inter, system-ui, sans-serif;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.mch-formatted-message h1 {
+  font-size: 1.6rem;
+}
+
+.mch-formatted-message h2 {
+  font-size: 1.35rem;
+}
+
+.mch-formatted-message h3 {
+  font-size: 1.15rem;
+}
+
+.mch-formatted-message ul,
+.mch-formatted-message ol {
+  margin-left: 1.25rem;
+}
+
+.mch-formatted-message ul {
+  list-style: disc;
+}
+
+.mch-formatted-message ol {
+  list-style: decimal;
+}
+
+.mch-formatted-message li + li {
+  margin-top: 0.35rem;
+}
+
+.mch-formatted-message strong,
+.mch-formatted-message b {
+  color: #e2e8f0;
+  font-weight: 800;
+}
+
+.mch-formatted-message a {
+  color: #67e8f9;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.mch-formatted-message blockquote {
+  border-left: 3px solid rgba(34, 211, 238, 0.6);
+  color: #cbd5e1;
+  padding-left: 0.85rem;
+}
+
+.mch-formatted-message code {
+  border-radius: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cffafe;
+  padding: 0.1rem 0.3rem;
+}
+
+@keyframes mchFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mchFloatPanel {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(10px) rotate(2deg);
+  }
+}

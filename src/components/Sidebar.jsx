@@ -2,150 +2,164 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const linkBase =
-  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white";
+const iconMap = {
+  home: (
+    <><path d="M3 10.5 12 3l9 7.5" /><path d="M5 10v10h5v-6h4v6h5V10" /></>
+  ),
+  overview: (
+    <><rect x="3" y="3" width="7" height="8" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="15" width="7" height="6" rx="1.5" /></>
+  ),
+  certs: (
+    <><circle cx="12" cy="8" r="5" /><path d="m8.5 12.5-1.2 7 4.7-2.5 4.7 2.5-1.2-7" /></>
+  ),
+  enrollments: (
+    <><path d="M9 4h6l1 2h3v15H5V6h3l1-2Z" /><path d="M9 11h6" /><path d="M9 15h6" /></>
+  ),
+  vouchers: (
+    <><path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7Z" /><path d="M9 9h6" /><path d="M9 15h4" /></>
+  ),
+  uploads: (
+    <><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M5 20h14" /></>
+  ),
+  notifications: (
+    <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" /><path d="M10 21h4" /></>
+  ),
+  profile: (
+    <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>
+  ),
+  settings: (
+    <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a8 8 0 0 0 .1-1l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L15 6.5h-4L10.6 9a8 8 0 0 0-1.7 1L6.5 9l-2 3.5 2 1.5a8 8 0 0 0 .1 2l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 1.7 1l.4 2.5h4l.4-2.5a8 8 0 0 0 1.7-1l2.4 1 2-3.5-2.2-2Z" /></>
+  ),
+  apps: (
+    <><path d="M7 3h7l5 5v13H7V3Z" /><path d="M14 3v5h5" /><path d="M10 13h6" /><path d="M10 17h4" /></>
+  ),
+  drives: (
+    <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4" /><path d="M16 3v4" /><path d="M4 10h16" /></>
+  ),
+  eligibility: (
+    <><path d="M12 3 20 7v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z" /><path d="m9 12 2 2 4-5" /></>
+  ),
+  results: (
+    <><path d="M4 20V4" /><path d="M4 20h16" /><rect x="7" y="11" width="3" height="6" rx="1" /><rect x="12" y="7" width="3" height="10" rx="1" /><rect x="17" y="13" width="3" height="4" rx="1" /></>
+  ),
+  admin: (
+    <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20a6 6 0 0 1 12 0" /><path d="M14 18a5 5 0 0 1 7 2" /></>
+  ),
+};
 
-function Icon({ children }) {
-  return <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 text-slate-200">{children}</span>;
+function Icon({ name, active }) {
+  return (
+    <span
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 transition ${
+        active
+          ? "bg-slate-950 text-cyan-300 ring-slate-900/20"
+          : "bg-white/10 text-slate-200 ring-white/10 group-hover:text-cyan-200"
+      }`}
+    >
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {iconMap[name] || iconMap.overview}
+      </svg>
+    </span>
+  );
+}
+
+function Section({ title, items, onNavigate }) {
+  return (
+    <div className="space-y-1">
+      <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{title}</div>
+      {items.map((item) => (
+        <NavLink key={item.to} to={item.to} onClick={() => onNavigate?.()}>
+          {({ isActive }) => (
+            <span
+              className={`group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition ${
+                isActive
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-400 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Icon name={item.icon} active={isActive} />
+              <span className="truncate">{item.label}</span>
+            </span>
+          )}
+        </NavLink>
+      ))}
+    </div>
+  );
 }
 
 export function Sidebar({ onNavigate }) {
   const { user, isAdmin, logout } = useAuth();
 
-  const Item = ({ to, icon, label }) => (
-    <NavLink
-      to={to}
-      onClick={() => onNavigate?.()}
-      className={({ isActive }) =>
-        `${linkBase} ${isActive ? "bg-gradient-to-r from-indigo-600/25 to-fuchsia-600/20 text-white ring-1 ring-white/10" : ""}`
-      }
-    >
-      {icon}
-      {label}
-    </NavLink>
-  );
+  const userJourney = [
+    { to: "/home", label: "Home", icon: "home" },
+    { to: "/dashboard", label: "Overview", icon: "overview" },
+    { to: "/certifications", label: "Certifications", icon: "certs" },
+    { to: "/enrollments", label: "My Enrollments", icon: "enrollments" },
+    { to: "/vouchers", label: "My Vouchers", icon: "vouchers" },
+    { to: "/uploads", label: "Uploads", icon: "uploads" },
+  ];
+
+  const userAccount = [
+    { to: "/notifications", label: "Notifications", icon: "notifications" },
+    { to: "/profile", label: "Profile", icon: "profile" },
+    { to: "/settings", label: "Settings", icon: "settings" },
+  ];
+
+  const adminOps = [
+    { to: "/dashboard", label: "Overview", icon: "overview" },
+    { to: "/admin-brd/registrations", label: "Applications", icon: "apps" },
+    { to: "/admin-brd/drives", label: "Drives", icon: "drives" },
+    { to: "/admin-brd/eligibility", label: "Eligibility", icon: "eligibility" },
+    { to: "/admin-brd/results", label: "Results", icon: "results" },
+    { to: "/vouchers", label: "Vouchers", icon: "vouchers" },
+    { to: "/uploads", label: "Documents", icon: "uploads" },
+  ];
+
+  const adminSystem = [
+    { to: "/certifications", label: "Certificates", icon: "certs" },
+    { to: "/admin", label: "Users", icon: "admin" },
+    { to: "/notifications", label: "Notifications", icon: "notifications" },
+    { to: "/settings", label: "Settings", icon: "settings" },
+  ];
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col backdrop-blur-xl" style={{ borderRight: "1px solid var(--color-border)", backgroundColor: "var(--color-bg-sidebar)" }}>
-      <div className="p-5" style={{ borderBottom: "1px solid var(--color-border)" }}>
-        <div className="font-display text-lg font-bold tracking-tight text-white">Maverick</div>
-        <p className="mt-1 text-xs text-slate-500">Certification Hub</p>
+    <aside className="flex h-full w-72 shrink-0 flex-col bg-[#0f172a] text-white shadow-2xl shadow-slate-950/20">
+      <div className="border-b border-white/10 p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400 text-lg font-black text-slate-950">M</div>
+          <div>
+            <div className="text-lg font-bold tracking-tight">Maverick</div>
+            <p className="text-xs text-slate-400">{isAdmin ? "Admin Dashboard" : "Certification Portal"}</p>
+          </div>
+        </div>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-        <Item
-          to="/dashboard"
-          label="Overview"
-          icon={
-            <Icon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-              </svg>
-            </Icon>
-          }
-        />
-        <Item
-          to="/settings"
-          label="Settings"
-          icon={
-            <Icon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </Icon>
-          }
-        />
-        <Item
-          to="/certifications"
-          label="Certifications"
-          icon={
-            <Icon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </Icon>
-          }
-        />
-        <Item
-          to="/enrollments"
-          label="Enrollments"
-          icon={
-            <Icon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </Icon>
-          }
-        />
 
-        <Item
-          to="/notifications"
-          label="Notifications"
-          icon={
-            <Icon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </Icon>
-          }
-        />
-        <Item
-          to="/vouchers"
-          label="Vouchers"
-          icon={
-            <Icon>
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
-              </svg>
-            </Icon>
-          }
-        />
-        {isAdmin && (
-          <Item
-            to="/admin"
-            label="Admin"
-            icon={
-              <Icon>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </Icon>
-            }
-          />
+      <nav className="flex-1 overflow-y-auto p-3">
+        {isAdmin ? (
+          <>
+            <Section title="Operations" items={adminOps} onNavigate={onNavigate} />
+            <Section title="System" items={adminSystem} onNavigate={onNavigate} />
+          </>
+        ) : (
+          <>
+            <Section title="Certification Journey" items={userJourney} onNavigate={onNavigate} />
+            <Section title="Account" items={userAccount} onNavigate={onNavigate} />
+          </>
         )}
       </nav>
-      <div className="p-4" style={{ borderTop: "1px solid var(--color-border)" }}>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt="Avatar"
-                className="h-10 w-10 rounded-full object-cover ring-2 ring-white/10"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-              />
-            ) : null}
-            <div
-              className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500/30 to-fuchsia-600/30 flex items-center justify-center text-white font-semibold text-sm"
-              style={{ display: user?.avatar_url ? 'none' : 'flex' }}
-            >
-              {user?.full_name?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="truncate text-xs text-slate-400">{user?.email}</div>
-            <div className="text-[10px] uppercase tracking-wider text-indigo-300/90">{user?.role}</div>
+
+      <div className="border-t border-white/10 p-4">
+        <div className="rounded-2xl bg-white/10 p-3">
+          <div className="truncate text-sm font-semibold text-white">{user?.full_name || user?.email}</div>
+          <div className="mt-1 truncate text-xs text-slate-400">{user?.email}</div>
+          <div className="mt-2 inline-flex rounded-full bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+            {user?.role}
           </div>
         </div>
         <button
           type="button"
           onClick={logout}
-          className="mt-3 w-full rounded-xl py-2 text-xs font-semibold text-slate-300 transition"
-          style={{ border: "1px solid var(--color-border)", backgroundColor: "var(--color-bg-input)" }}
+          className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white"
         >
           Sign out
         </button>

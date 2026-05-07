@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { certificationsApi, enrollmentsApi } from "../services/api.js";
+import { certificationsApi, enrollmentsApi, tasksApi, vouchersApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -40,6 +40,8 @@ export function EnrollmentsPage() {
   const { isAdmin } = useAuth();
   const mine = useAsyncData(() => enrollmentsApi.my().then((r) => r.data), []);
   const certs = useAsyncData(() => certificationsApi.list().then((r) => r.data), []);
+  const vouchers = useAsyncData(() => vouchersApi.my().then((r) => r.data), []);
+  const tasks = useAsyncData(() => tasksApi.my().then((r) => r.data), []);
   const [adminUserId, setAdminUserId] = useState("");
   const [adminCertId, setAdminCertId] = useState("");
   const adminList = useAsyncData(async () => {
@@ -53,6 +55,23 @@ export function EnrollmentsPage() {
   }, [isAdmin, adminUserId, adminCertId]);
 
   const certMap = useMemo(() => Object.fromEntries((certs.data || []).map((c) => [c.id, c])), [certs.data]);
+  const voucherMap = useMemo(() => {
+    const map = {};
+    (vouchers.data || []).forEach((v) => {
+      if (v.certification_id && !map[v.certification_id]) map[v.certification_id] = v;
+    });
+    return map;
+  }, [vouchers.data]);
+  const taskMap = useMemo(() => {
+    const map = {};
+    (tasks.data || []).forEach((t) => {
+      if (!t.enrollment_id) return;
+      if (!map[t.enrollment_id]) map[t.enrollment_id] = { total: 0, done: 0 };
+      map[t.enrollment_id].total += 1;
+      if (t.status === "done") map[t.enrollment_id].done += 1;
+    });
+    return map;
+  }, [tasks.data]);
 
   const [editRow, setEditRow] = useState(null);
   const [editForm, setEditForm] = useState({ status: "", progress_percent: "", target_completion_date: "", notes: "" });
@@ -101,6 +120,17 @@ export function EnrollmentsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function downloadVoucher(voucher, certTitle) {
+    if (!voucher?.code) return;
+    const blob = new Blob([`Certification: ${certTitle}\nVoucher code: ${voucher.code}\nStatus: ${voucher.status}\n`], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voucher-${voucher.id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   if (mine.loading && !mine.data) return <CardSkeleton />;
@@ -172,7 +202,64 @@ export function EnrollmentsPage() {
         </Card>
       )}
 
-      {/* ── Active Enrollments ── */}
+      {activeEnrollments.length > 0 && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {activeEnrollments.map((e) => {
+            const cert = certMap[e.certification_id];
+            const voucher = voucherMap[e.certification_id];
+            const taskStats = taskMap[e.id] || { total: 0, done: 0 };
+            return (
+              <Card key={e.id} className="!p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <Link to={`/learning/${e.id}`} className="font-display text-lg font-semibold text-white hover:text-indigo-300">
+                      {cert?.title || `Certification #${e.certification_id}`}
+                    </Link>
+                    <p className="mt-1 text-sm text-slate-400">{cert?.provider || ""}</p>
+                  </div>
+                  <StatusBadge status={e.status} />
+                </div>
+                <div className="mt-4">
+                  <div className="mb-2 flex justify-between text-xs text-slate-400">
+                    <span>Progress</span>
+                    <span>{e.progress_percent || 0}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500" style={{ width: `${e.progress_percent || 0}%` }} />
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-white/[0.03] p-3">
+                    <div className="text-xs text-slate-500">Voucher</div>
+                    <div className="mt-1 text-sm font-medium text-white">{voucher?.status || "Pending"}</div>
+                    {voucher?.code && <div className="mt-1 truncate text-xs text-indigo-300">{voucher.code}</div>}
+                  </div>
+                  <div className="rounded-xl bg-white/[0.03] p-3">
+                    <div className="text-xs text-slate-500">Tasks</div>
+                    <div className="mt-1 text-sm font-medium text-white">{taskStats.done}/{taskStats.total}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.03] p-3">
+                    <div className="text-xs text-slate-500">Result</div>
+                    <div className="mt-1 text-sm font-medium text-white">{e.status === "completed" ? "Pass" : "Pending"}</div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link to={`/learning/${e.id}`}><Button variant="ghost" className="!py-1.5 !text-xs">Open Plan</Button></Link>
+                  <Button
+                    className="!py-1.5 !text-xs"
+                    disabled={!voucher?.code}
+                    onClick={() => downloadVoucher(voucher, cert?.title || `Certification #${e.certification_id}`)}
+                  >
+                    Download Voucher
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Active Enrollments */}
       <Card title="Active Enrollments" subtitle={activeEnrollments.length === 0 ? "Go to Certifications to enroll" : `${activeEnrollments.length} enrollment${activeEnrollments.length !== 1 ? "s" : ""}`}>
         <Table
           columns={[
