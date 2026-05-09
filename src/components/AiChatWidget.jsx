@@ -31,16 +31,9 @@ export function AiChatWidget() {
     setIsLoading(true);
 
     try {
-      // For now, we'll use a simple response. In a real implementation,
-      // this would call an AI chat endpoint
-      const response = await new Promise(resolve => {
-        setTimeout(() => {
-          resolve({
-            data: {
-              response: "I'm here to help with your certification journey! I can assist with course recommendations, study tips, certification requirements, and more. What specific topic would you like to know about?"
-            }
-          });
-        }, 1000);
+      const response = await aiApi.chat({
+        message: userMessage.content,
+        history: messages.slice(-8),
       });
 
       const assistantMessage = { role: "assistant", content: response.data.response };

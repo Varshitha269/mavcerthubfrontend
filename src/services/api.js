@@ -146,6 +146,7 @@ export const vouchersApi = {
 };
 
 export const aiApi = {
+  chat: (payload) => api.post("/ai/chat", payload),
   extractCertificate: (payload) => api.post("/ai/certificate/extract", payload),
   generateTasks: (payload) => api.post("/ai/tasks/generate", payload),
   verifyCertificateUpload: (payload) => api.post("/ai/certificate/verify_upload", payload),
