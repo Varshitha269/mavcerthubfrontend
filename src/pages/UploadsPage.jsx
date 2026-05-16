@@ -15,9 +15,21 @@ const checklist = [
 ];
 
 function statusFor(upload) {
-  if (upload.purpose === "certificate" && upload.enrollment_status === "completed") return { label: "Approved", cls: "text-emerald-300 bg-emerald-500/10" };
-  if (upload.original_filename?.toLowerCase().includes("reject")) return { label: "Rejected", cls: "text-rose-300 bg-rose-500/10" };
+  const status = normalizedStatus(upload);
+  if (status === "approved" || (upload.purpose === "certificate" && upload.enrollment_status === "completed")) return { label: "Approved", cls: "text-emerald-300 bg-emerald-500/10" };
+  if (status === "rejected") return { label: "Rejected", cls: "text-rose-300 bg-rose-500/10" };
   return { label: "Under Review", cls: "text-amber-300 bg-amber-500/10" };
+}
+
+function normalizedStatus(upload) {
+  return String(upload.status || upload.review_status || "under_review").trim().toLowerCase();
+}
+
+function statusKey(upload) {
+  const status = normalizedStatus(upload);
+  if (status === "approved" || status === "rejected") return status;
+  if (upload.purpose === "certificate" && upload.enrollment_status === "completed") return "approved";
+  return "under_review";
 }
 
 export function UploadsPage() {
@@ -28,15 +40,19 @@ export function UploadsPage() {
   const [file, setFile] = useState(null);
   const [purpose, setPurpose] = useState("profile_doc");
   const [enrollmentId, setEnrollmentId] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(null);
 
   const uploadedPurposes = useMemo(() => new Set((uploads.data || []).map((u) => u.purpose)), [uploads.data]);
   const activeEnrollments = (enrollments.data || []).filter((e) => e.status !== "saved_for_later");
+  const pendingUploads = useMemo(() => (uploads.data || []).filter((u) => statusKey(u) === "under_review"), [uploads.data]);
+  const approvedUploads = useMemo(() => (uploads.data || []).filter((u) => statusKey(u) === "approved"), [uploads.data]);
+  const rejectedUploads = useMemo(() => (uploads.data || []).filter((u) => statusKey(u) === "rejected"), [uploads.data]);
 
   async function submit(e) {
     e.preventDefault();
     if (!file) return;
-    setBusy(true);
+    setUploadBusy(true);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -50,21 +66,64 @@ export function UploadsPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Upload failed");
     } finally {
-      setBusy(false);
+      setUploadBusy(false);
     }
   }
 
   async function review(upload, decision) {
-    setBusy(true);
+    setReviewBusy(`${decision}-${upload.id}`);
+    const reason = decision === "rejected" ? "Please re-upload a clearer or valid document." : "";
     try {
-      await uploadsApi.adminReview(upload.id, { decision, reason: decision === "rejected" ? "Please re-upload a clearer or valid document." : "" });
+      await uploadsApi.adminReview(upload.id, { decision, reason });
       toast.success(`Document ${decision}.`);
-      uploads.reload();
+      uploads.setData((current) =>
+        Array.isArray(current)
+          ? current.map((item) =>
+              item.id === upload.id
+                ? { ...item, status: decision, review_status: decision, review_reason: reason || null, reviewed_at: new Date().toISOString() }
+                : item
+            )
+          : current
+      );
+      await uploads.reload();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Review failed");
     } finally {
-      setBusy(false);
+      setReviewBusy(null);
     }
+  }
+
+  function renderUploadRows(rows, emptyMessage) {
+    if (rows.length === 0) return <p className="text-sm text-slate-400">{emptyMessage}</p>;
+    return rows.map((upload) => {
+      const status = statusFor(upload);
+      const currentStatus = statusKey(upload);
+      return (
+        <div key={upload.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <div>
+            <div className="font-medium text-white">{upload.original_filename}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {isAdmin ? `User #${upload.user_id} - ` : ""}{upload.purpose} {upload.certification?.title ? `- ${upload.certification.title}` : ""}
+            </div>
+            {currentStatus === "rejected" && (
+              <div className="mt-2 text-xs text-rose-300">Reason: {upload.review_reason || "Please re-upload a clearer or valid document."}</div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full px-2.5 py-1 text-xs ${status.cls}`}>{status.label}</span>
+            {isAdmin && currentStatus === "under_review" && (
+              <>
+                <Button className="!py-1.5 !px-3 !text-xs" loading={reviewBusy === `approved-${upload.id}`} onClick={() => review(upload, "approved")}>Approve</Button>
+                <Button variant="danger" className="!py-1.5 !px-3 !text-xs" loading={reviewBusy === `rejected-${upload.id}`} onClick={() => review(upload, "rejected")}>Reject</Button>
+              </>
+            )}
+            <a className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-indigo-300 hover:bg-white/5" href={upload.download_url} target="_blank" rel="noreferrer">
+              View
+            </a>
+          </div>
+        </div>
+      );
+    });
   }
 
   if (uploads.loading && !uploads.data) return <CardSkeleton />;
@@ -127,47 +186,28 @@ export function UploadsPage() {
                 </select>
               </div>
             </div>
-            <Button type="submit" loading={busy} disabled={!file}>Upload Document</Button>
+            <Button type="submit" loading={uploadBusy} disabled={!file}>Upload Document</Button>
           </form>
         </Card>
       </div>}
 
-      <Card title="Uploaded Documents" subtitle="Admin review status and re-upload guidance">
-        <div className="space-y-3">
-          {(uploads.data || []).length === 0 ? (
-            <p className="text-sm text-slate-400">No documents uploaded yet.</p>
-          ) : (
-            uploads.data.map((upload) => {
-              const status = statusFor(upload);
-              return (
-                <div key={upload.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <div>
-                    <div className="font-medium text-white">{upload.original_filename}</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {isAdmin ? `User #${upload.user_id} - ` : ""}{upload.purpose} {upload.certification?.title ? `- ${upload.certification.title}` : ""}
-                    </div>
-                    {status.label === "Rejected" && (
-                      <div className="mt-2 text-xs text-rose-300">Reason: file name indicates rejection. Upload a corrected document.</div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-xs ${status.cls}`}>{status.label}</span>
-                    {isAdmin && (
-                      <>
-                        <Button className="!py-1.5 !px-3 !text-xs" loading={busy} onClick={() => review(upload, "approved")}>Approve</Button>
-                        <Button variant="danger" className="!py-1.5 !px-3 !text-xs" loading={busy} onClick={() => review(upload, "rejected")}>Reject</Button>
-                      </>
-                    )}
-                    <a className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-indigo-300 hover:bg-white/5" href={upload.download_url} target="_blank" rel="noreferrer">
-                      View
-                    </a>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </Card>
+      {isAdmin ? (
+        <>
+          <Card title="Pending Documents" subtitle="Only documents waiting for review appear here">
+            <div className="space-y-3">{renderUploadRows(pendingUploads, "No pending documents.")}</div>
+          </Card>
+          <Card title="Approved Docs" subtitle="Documents already approved by admin">
+            <div className="space-y-3">{renderUploadRows(approvedUploads, "No approved documents yet.")}</div>
+          </Card>
+          <Card title="Rejected Docs" subtitle="Documents rejected with re-upload guidance">
+            <div className="space-y-3">{renderUploadRows(rejectedUploads, "No rejected documents yet.")}</div>
+          </Card>
+        </>
+      ) : (
+        <Card title="Uploaded Documents" subtitle="Admin review status and re-upload guidance">
+          <div className="space-y-3">{renderUploadRows(uploads.data || [], "No documents uploaded yet.")}</div>
+        </Card>
+      )}
     </div>
   );
 }

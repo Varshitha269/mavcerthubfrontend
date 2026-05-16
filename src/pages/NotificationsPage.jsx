@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { notificationsApi } from "../services/api.js";
 import { useToast } from "../context/ToastContext.jsx";
@@ -18,12 +19,14 @@ function bucketFor(n) {
 
 export function NotificationsPage() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [active, setActive] = useState("All");
   const { data, loading, reload } = useAsyncData(() => notificationsApi.my().then((r) => r.data), []);
 
   const grouped = useMemo(() => {
-    const groups = { All: data || [], Success: [], Pending: [], Info: [], "Action Required": [] };
+    const groups = { All: data || [], Unread: [], Read: [], Success: [], Pending: [], Info: [], "Action Required": [] };
     (data || []).forEach((n) => groups[bucketFor(n)].push(n));
+    (data || []).forEach((n) => groups[n.read_at ? "Read" : "Unread"].push(n));
     return groups;
   }, [data]);
 
@@ -55,6 +58,22 @@ export function NotificationsPage() {
     }
   }
 
+  async function openNotification(n) {
+    if (!n.link_url) return;
+    if (!n.read_at) {
+      try {
+        await notificationsApi.markRead(n.id);
+      } catch {
+        // Navigation is still useful even if the read state update fails.
+      }
+    }
+    if (n.link_url.startsWith("http://") || n.link_url.startsWith("https://")) {
+      window.location.href = n.link_url;
+      return;
+    }
+    navigate(n.link_url);
+  }
+
   if (loading && !data) return <CardSkeleton />;
   const unread = (data || []).filter((n) => !n.read_at).length;
 
@@ -82,7 +101,16 @@ export function NotificationsPage() {
             <p className="text-sm text-slate-400">No notifications in this group.</p>
           ) : (
             grouped[active].map((n) => (
-              <div key={n.id} className={`rounded-xl border p-4 ${n.read_at ? "border-white/5 bg-white/[0.02]" : "border-indigo-400/20 bg-indigo-500/5"}`}>
+              <div
+                key={n.id}
+                role={n.link_url ? "button" : undefined}
+                tabIndex={n.link_url ? 0 : undefined}
+                onClick={() => openNotification(n)}
+                onKeyDown={(e) => {
+                  if (n.link_url && (e.key === "Enter" || e.key === " ")) openNotification(n);
+                }}
+                className={`rounded-xl border p-4 ${n.link_url ? "cursor-pointer hover:border-cyan-400/30 hover:bg-cyan-500/5" : ""} ${n.read_at ? "border-white/5 bg-white/[0.02]" : "border-indigo-400/20 bg-indigo-500/5"}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -97,8 +125,8 @@ export function NotificationsPage() {
                     <p className="mt-2 text-xs text-slate-500">{new Date(n.created_at).toLocaleString()}</p>
                   </div>
                   <div className="flex gap-2">
-                    {!n.read_at && <Button className="!py-1.5 !text-xs" onClick={() => markRead(n.id)}>Read</Button>}
-                    <Button variant="ghost" className="!py-1.5 !text-xs" onClick={() => remove(n.id)}>Delete</Button>
+                    {!n.read_at && <Button className="!py-1.5 !text-xs" onClick={(e) => { e.stopPropagation(); markRead(n.id); }}>Read</Button>}
+                    <Button variant="ghost" className="!py-1.5 !text-xs" onClick={(e) => { e.stopPropagation(); remove(n.id); }}>Delete</Button>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { certificationsApi, registrationsApi } from "../services/api.js";
+import { registrationsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -11,9 +12,10 @@ import { Table } from "../components/Table.jsx";
 export function RegistrationsPage() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
+  const location = useLocation();
 
   const myRegs = useAsyncData(() => registrationsApi.my().then((r) => r.data), []);
-  const certs = useAsyncData(() => certificationsApi.list().then((r) => r.data), []);
+  const openDrives = useAsyncData(() => registrationsApi.openDrives().then((r) => r.data), []);
 
   const [lookup, setLookup] = useState({ reg_id: "", email: "", emp_id: "" });
   const [lookupRes, setLookupRes] = useState(null);
@@ -34,9 +36,23 @@ export function RegistrationsPage() {
     notes: "",
   });
   const [busy, setBusy] = useState(false);
+  const requestedDriveId = useMemo(() => new URLSearchParams(location.search).get("drive_id"), [location.search]);
 
   const inputClass =
     "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
+
+  useEffect(() => {
+    if (!requestedDriveId || !openDrives.data) return;
+    const drive = openDrives.data.find((item) => String(item.id) === String(requestedDriveId));
+    if (!drive) return;
+    setForm((current) => ({
+      ...current,
+      drive_id: String(drive.id),
+      candidate_email: current.candidate_email || user?.email || "",
+      exam_track: drive.certification_title || drive.name,
+    }));
+    setOpen(true);
+  }, [requestedDriveId, openDrives.data, user?.email]);
 
   async function submit(e) {
     e.preventDefault();
@@ -87,6 +103,38 @@ export function RegistrationsPage() {
         </div>
         <Button onClick={() => setOpen(true)}>New registration</Button>
       </div>
+
+      <Card title="Open drives" subtitle="Choose one of the current drives and register. Your application will appear in the admin Applications tab.">
+        {(openDrives.data || []).length === 0 ? (
+          <p className="text-sm text-slate-400">No open drives right now. Admin can create current drives from Drive management.</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-3">
+            {(openDrives.data || []).slice(0, 6).map((drive) => (
+              <div key={drive.id} className={`rounded-xl border p-4 ${String(drive.id) === String(requestedDriveId) ? "border-cyan-400/40 bg-cyan-500/10" : "border-white/10 bg-white/[0.03]"}`}>
+                <div className="text-xs font-semibold uppercase tracking-wider text-cyan-300">Drive #{drive.id}</div>
+                <h3 className="mt-2 font-semibold text-white">{drive.certification_title || drive.name}</h3>
+                <p className="mt-1 text-sm text-slate-400">{drive.certification_provider || drive.sponsor || "Provider not set"}</p>
+                <p className="mt-3 text-xs text-slate-500">
+                  {drive.start_date || "Open now"} {drive.end_date ? `to ${drive.end_date}` : ""}
+                </p>
+                <Button
+                  className="mt-4 !py-1.5 !text-xs"
+                  onClick={() => {
+                    setForm({
+                      ...form,
+                      drive_id: String(drive.id),
+                      exam_track: drive.certification_title || drive.name,
+                    });
+                    setOpen(true);
+                  }}
+                >
+                  Register
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card title="My registrations">
         <Table
@@ -151,7 +199,17 @@ export function RegistrationsPage() {
         <form id="reg-form" onSubmit={submit} className="space-y-3">
           <div>
             <label className="text-xs text-slate-500">Drive ID</label>
-            <input className={inputClass} value={form.drive_id} onChange={(e) => setForm({ ...form, drive_id: e.target.value })} required />
+            <select className={inputClass} value={form.drive_id} onChange={(e) => {
+              const drive = (openDrives.data || []).find((d) => String(d.id) === e.target.value);
+              setForm({ ...form, drive_id: e.target.value, exam_track: drive?.certification_title || form.exam_track });
+            }} required>
+              <option value="">Select open drive</option>
+              {(openDrives.data || []).map((drive) => (
+                <option key={drive.id} value={drive.id}>
+                  #{drive.id} - {drive.certification_title || drive.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

@@ -28,7 +28,6 @@ export const tokenStorage = {
 export const api = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
-  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
@@ -46,7 +45,6 @@ export async function loginWithPassword(email, password) {
   body.set("password", password);
   const { data } = await axios.post(`${API_BASE}/auth/login`, body, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    timeout: 15000,
   });
   return data;
 }
@@ -69,6 +67,7 @@ export const usersApi = {
 export const profileApi = {
   get: () => api.get("/profile/me"),
   badges: () => api.get("/profile/badges"),
+  driveHistory: () => api.get("/profile/drive-history"),
   patch: (payload) => api.patch("/profile/me", payload),
   changePassword: (payload) => api.post("/profile/change-password", payload),
   patchPreferences: (payload) => api.patch("/profile/preferences", payload),
@@ -162,7 +161,7 @@ export const adminApi = {
   createUser: (payload) => api.post("/admin/users", payload),
   patchUser: (userId, payload) => api.patch(`/admin/users/${userId}`, payload),
   analytics: () => api.get("/admin/analytics"),
-  runReminders: () => api.post("/admin/reminders/run"),
+  runReminders: (payload = {}) => api.post("/admin/reminders/run", payload),
   auditLogs: () => api.get("/admin/audit-logs"),
   emailLogs: () => api.get("/admin/email-logs"),
   brdOverview: () => api.get("/admin/brd-overview"),
@@ -178,7 +177,10 @@ export const exportsApi = {
 // BRD APIs (new)
 export const drivesBrdApi = {
   adminList: () => api.get("/admin/drives/"),
+  create: (payload) => api.post("/admin/drives/", payload),
   ensureDefaults: () => api.post("/admin/drives/ensure-defaults"),
+  seedCurrent: () => api.post("/admin/drives/seed-current"),
+  seedCompleted: () => api.post("/admin/drives/seed-completed"),
   adminPatch: (driveId, payload) => api.patch(`/admin/drives/${driveId}`, payload),
   provisionRepo: (driveId) => api.post(`/admin/drives/${driveId}/provision-repo`),
   reconduct: (driveId) => api.post(`/admin/drives/${driveId}/reconduct`),
@@ -187,6 +189,7 @@ export const drivesBrdApi = {
 export const registrationsApi = {
   create: (payload) => api.post("/registrations/", payload),
   my: () => api.get("/registrations/me"),
+  openDrives: () => api.get("/registrations/open-drives"),
   adminList: (params) => api.get("/registrations/", { params }),
   adminPatch: (registrationId, payload) => api.patch(`/registrations/${registrationId}`, payload),
   statusLookup: (params) => api.get("/registrations/status/lookup", { params }),

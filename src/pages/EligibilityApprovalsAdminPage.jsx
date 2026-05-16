@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { eligibilityAdminApi, registrationsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -46,6 +46,16 @@ export function EligibilityApprovalsAdminPage() {
   const [decision, setDecision] = useState({ status: "approved", decision_notes: "" });
   const [approvalForm, setApprovalForm] = useState({ level: 1, approver_email: "" });
   const [busy, setBusy] = useState(false);
+  const eligibilityStats = useMemo(() => {
+    const regs = registrations.data || [];
+    const appr = approvals.data || [];
+    return {
+      registrations: regs.length,
+      pendingApprovals: appr.filter((a) => a.status === "pending").length,
+      approved: appr.filter((a) => a.status === "approved").length,
+      rejected: appr.filter((a) => a.status === "rejected").length,
+    };
+  }, [registrations.data, approvals.data]);
 
   const inputClass =
     "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
@@ -108,6 +118,20 @@ export function EligibilityApprovalsAdminPage() {
         <p className="text-slate-400">Admin workflow: evaluate rules → pending approvals → decide</p>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Registrations loaded", eligibilityStats.registrations],
+          ["Pending approvals", eligibilityStats.pendingApprovals],
+          ["Approved", eligibilityStats.approved],
+          ["Rejected", eligibilityStats.rejected],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+            <div className="mt-2 font-display text-2xl font-bold text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+
       <Card title="Evaluate eligibility" subtitle="POST /admin/eligibility/evaluate">
         <p className="mb-4 text-sm leading-6 text-slate-400">
           Use a Registration ID from the table below. Evaluation reads the registration's drive, applies the drive eligibility rules, updates registration status, and creates a pending approval when manual review is required.
@@ -166,6 +190,7 @@ export function EligibilityApprovalsAdminPage() {
             },
           ]}
           rows={registrations.data || []}
+          emptyMessage="No registrations to evaluate. Applications must be submitted before eligibility can run."
         />
       </Card>
 
@@ -219,6 +244,7 @@ export function EligibilityApprovalsAdminPage() {
             },
           ]}
           rows={approvals.data || []}
+          emptyMessage="No approval requests for this filter. Evaluate a registration or request approval from the registrations table."
         />
       </Card>
 

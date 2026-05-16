@@ -27,6 +27,13 @@ const emptyBroadcast = {
   audience: "active_users",
   content_format: "plain",
 };
+const emptyReminder = {
+  user_scope: "active",
+  user_id: "",
+  enrollment_status: "pending",
+  include_broadcast_expiry: true,
+  broadcast_expiry_days: 7,
+};
 
 function dateOnly(value) {
   return value ? String(value).slice(0, 10) : "";
@@ -207,6 +214,8 @@ export function AdminPage() {
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [broadcast, setBroadcast] = useState(emptyBroadcast);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const [reminder, setReminder] = useState(emptyReminder);
   const [busy, setBusy] = useState(false);
 
   if (!isAdmin) return <Navigate to="/home" replace />;
@@ -278,6 +287,27 @@ export function AdminPage() {
     }
   }
 
+  async function runReminders(e) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { data } = await adminApi.runReminders({
+        ...reminder,
+        user_id: reminder.user_id || null,
+        broadcast_expiry_days: Number(reminder.broadcast_expiry_days) || 7,
+      });
+      toast.success(
+        `Reminders created. Certificates checked: ${data.checked}, emails sent: ${data.sent}, broadcast reminders: ${data.broadcast_expiry_reminders}.`
+      );
+      setReminderOpen(false);
+      brd.reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to run reminders");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const metrics = brd.data?.metrics || {};
   const userRows = users.data || [];
   const userPowerRows = [
@@ -298,6 +328,7 @@ export function AdminPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={exportUsers} loading={busy}>Export Users</Button>
+          <Button variant="ghost" onClick={() => setReminderOpen(true)}>Run Reminders</Button>
           <Button variant="ghost" onClick={() => setBroadcastOpen(true)}>Broadcast</Button>
           <Button onClick={() => setCreateOpen(true)}>New User</Button>
         </div>
@@ -378,7 +409,11 @@ export function AdminPage() {
         </div>
       </Card>
 
-      <Card title="Users" subtitle="Registration date, last recorded login, active status, role, and learning activity">
+      <Card
+        title="Users"
+        subtitle="Registration date, last recorded login, active status, role, and learning activity"
+        actions={<Button variant="ghost" className="!py-1.5 !text-xs" onClick={() => setReminderOpen(true)}>Run Certificate Reminders</Button>}
+      >
         <Table
           columns={[
             { key: "id", label: "ID" },
@@ -404,6 +439,66 @@ export function AdminPage() {
           rows={userRows}
         />
       </Card>
+
+      <Modal
+        open={reminderOpen}
+        title="Run reminders"
+        onClose={() => setReminderOpen(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setReminderOpen(false)}>Cancel</Button>
+            <Button type="submit" form="reminder-form" loading={busy}>Run Now</Button>
+          </>
+        }
+      >
+        <form id="reminder-form" onSubmit={runReminders} className="space-y-3">
+          <p className="text-sm leading-6 text-slate-400">
+            Send reminders for pending or overdue certification enrollments. You can target all active users, inactive users, everyone, or a single user ID. Broadcast expiry reminders are created for announcements that close soon.
+          </p>
+          <div>
+            <label className="text-xs text-slate-500">User audience</label>
+            <select className={inputClass} value={reminder.user_scope} onChange={(e) => setReminder({ ...reminder, user_scope: e.target.value })}>
+              <option value="active">Active users</option>
+              <option value="inactive">Inactive users</option>
+              <option value="all">All users</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Particular user ID</label>
+            <input className={inputClass} value={reminder.user_id} onChange={(e) => setReminder({ ...reminder, user_id: e.target.value })} placeholder="Leave blank for selected audience" />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500">Certificate enrollment status</label>
+            <select className={inputClass} value={reminder.enrollment_status} onChange={(e) => setReminder({ ...reminder, enrollment_status: e.target.value })}>
+              <option value="pending">Pending users: selected or in progress</option>
+              <option value="selected">Selected only</option>
+              <option value="in_progress">In progress only</option>
+              <option value="saved_for_later">Saved for later</option>
+              <option value="all">All enrollments</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm font-semibold text-slate-200">
+            <input
+              type="checkbox"
+              checked={reminder.include_broadcast_expiry}
+              onChange={(e) => setReminder({ ...reminder, include_broadcast_expiry: e.target.checked })}
+            />
+            Include broadcasts with expiration dates
+          </label>
+          <div>
+            <label className="text-xs text-slate-500">Broadcast expires within days</label>
+            <input
+              className={inputClass}
+              type="number"
+              min="1"
+              max="60"
+              value={reminder.broadcast_expiry_days}
+              onChange={(e) => setReminder({ ...reminder, broadcast_expiry_days: e.target.value })}
+              disabled={!reminder.include_broadcast_expiry}
+            />
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={createOpen}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { certificationsApi, enrollmentsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -206,14 +206,16 @@ function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStar
               >
                 Check Eligibility
               </Button>
-              <Button
-                variant="ghost"
-                className="!py-1.5 !px-3 !text-xs"
-                loading={enrolling === `test-${cert.id}`}
-                onClick={() => onStartTest(cert.id)}
-              >
-                Take Test
-              </Button>
+              {!testPassed && (
+                <Button
+                  variant="ghost"
+                  className="!py-1.5 !px-3 !text-xs"
+                  loading={enrolling === `test-${cert.id}`}
+                  onClick={() => onStartTest(cert.id)}
+                >
+                  Take Test
+                </Button>
+              )}
               <Button
                 className="!py-1.5 !px-3 !text-xs"
                 loading={enrolling === `enroll-${cert.id}`}
@@ -234,14 +236,16 @@ function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStar
               >
                 Check Eligibility
               </Button>
-              <Button
-                variant="ghost"
-                className="!py-1.5 !px-3 !text-xs"
-                loading={enrolling === `test-${cert.id}`}
-                onClick={() => onStartTest(cert.id)}
-              >
-                Take Test
-              </Button>
+              {!testPassed && (
+                <Button
+                  variant="ghost"
+                  className="!py-1.5 !px-3 !text-xs"
+                  loading={enrolling === `test-${cert.id}`}
+                  onClick={() => onStartTest(cert.id)}
+                >
+                  Take Test
+                </Button>
+              )}
               <Button
                 className="!py-1.5 !px-3 !text-xs"
                 loading={enrolling === `enroll-${cert.id}`}
@@ -305,11 +309,40 @@ export function CertificationsPage() {
     [myEnrollments]
   );
 
+  useEffect(() => {
+    if (isAdmin || !certs?.length) return;
+    const missing = certs.filter((cert) => eligibility[cert.id] === undefined);
+    if (!missing.length) return;
+
+    let cancelled = false;
+    Promise.allSettled(
+      missing.map((cert) =>
+        certificationsApi.eligibility(cert.id).then((r) => [cert.id, r.data])
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      setEligibility((prev) => {
+        const next = { ...prev };
+        results.forEach((result) => {
+          if (result.status !== "fulfilled") return;
+          const [certId, data] = result.value;
+          if (next[certId] === undefined) next[certId] = data;
+        });
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [certs, isAdmin]);
+
   // Admin CRUD state
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(emptyCert);
   const [selectedId, setSelectedId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [adminBusy, setAdminBusy] = useState(null);
 
   // ── Enroll Now ──────────────────────────────────────────────────────────
   async function handleEnroll(certId) {
@@ -398,7 +431,7 @@ export function CertificationsPage() {
   // ── Admin CRUD ──────────────────────────────────────────────────────────
   async function submitCert(e) {
     e.preventDefault();
-    setSubmitting(true);
+    setAdminBusy("save-cert");
     const payload = {
       title: form.title, provider: form.provider,
       level: form.level || null, description: form.description || null,
@@ -420,13 +453,13 @@ export function CertificationsPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Request failed");
     } finally {
-      setSubmitting(false);
+      setAdminBusy(null);
     }
   }
 
   async function confirmDelete() {
     if (!selectedId) return;
-    setSubmitting(true);
+    setAdminBusy("delete-cert");
     try {
       await certificationsApi.remove(selectedId);
       toast.success("Deleted.");
@@ -436,12 +469,12 @@ export function CertificationsPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed");
     } finally {
-      setSubmitting(false);
+      setAdminBusy(null);
     }
   }
 
   async function exportCertifications() {
-    setSubmitting(true);
+    setAdminBusy("export-cert");
     try {
       const { data } = await certificationsApi.exportCsv();
       const url = URL.createObjectURL(data);
@@ -454,7 +487,7 @@ export function CertificationsPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Export failed");
     } finally {
-      setSubmitting(false);
+      setAdminBusy(null);
     }
   }
 
@@ -468,7 +501,7 @@ export function CertificationsPage() {
         </div>
         {isAdmin && (
           <div className="flex flex-wrap gap-2">
-            <Button variant="ghost" loading={submitting} onClick={exportCertifications}>
+            <Button variant="ghost" loading={adminBusy === "export-cert"} onClick={exportCertifications}>
               Export Certificates
             </Button>
             <Button onClick={() => { setForm(emptyCert); setSelectedId(null); setModal("create"); }}>
@@ -625,7 +658,7 @@ export function CertificationsPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
-            <Button type="submit" form="cert-form" loading={submitting}>Save</Button>
+            <Button type="submit" form="cert-form" loading={adminBusy === "save-cert"}>Save</Button>
           </>
         }
       >
@@ -739,7 +772,7 @@ export function CertificationsPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
-            <Button variant="danger" loading={submitting} onClick={confirmDelete}>Delete</Button>
+            <Button variant="danger" loading={adminBusy === "delete-cert"} onClick={confirmDelete}>Delete</Button>
           </>
         }
       >

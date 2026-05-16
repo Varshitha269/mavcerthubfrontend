@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { registrationsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -30,6 +31,15 @@ export function RegistrationsAdminPage() {
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState({ status: "", notes: "" });
   const [busy, setBusy] = useState(false);
+  const stats = useMemo(() => {
+    const data = rows.data || [];
+    return {
+      total: data.length,
+      submitted: data.filter((r) => r.status === "submitted").length,
+      pending: data.filter((r) => String(r.status || "").includes("pending")).length,
+      approved: data.filter((r) => ["eligible", "passed"].includes(r.status)).length,
+    };
+  }, [rows.data]);
 
   const inputClass =
     "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
@@ -54,9 +64,44 @@ export function RegistrationsAdminPage() {
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-2xl font-bold text-white">Registrations (Admin)</h2>
-        <p className="text-slate-400">Filter, update, and audit BRD registrations</p>
+        <p className="text-slate-400">This is the Applications tab: every row is a user application for a certification drive before eligibility, approval, voucher, and result tracking.</p>
       </div>
-      <Card title="Filters">
+
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Applications", stats.total],
+          ["Submitted", stats.submitted],
+          ["Pending review", stats.pending],
+          ["Approved / passed", stats.approved],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+            <div className="mt-2 font-display text-2xl font-bold text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+
+      <Card title="What this page is for" subtitle="Application workflow">
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            ["1. User applies", "A learner registers for a drive from the user registration page."],
+            ["2. Admin evaluates", "Use Eligibility to check rules and request manager approval."],
+            ["3. Voucher / exam", "Approved users can receive vouchers and attend assessment."],
+            ["4. Results close loop", "Results update the application as passed, failed, or no-show."],
+          ].map(([title, body]) => (
+            <div key={title} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="font-semibold text-white">{title}</div>
+              <p className="mt-2 text-sm leading-5 text-slate-400">{body}</p>
+            </div>
+          ))}
+        </div>
+        {(rows.data || []).length === 0 && (
+          <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm text-amber-100">
+            No applications are stored yet. Create/open a drive in <Link to="/admin-brd/drives" className="font-semibold underline">Drives</Link>, then users can submit applications from the registration page.
+          </div>
+        )}
+      </Card>
+      <Card title="Filters" subtitle="These filters apply instantly; no separate submit button is needed.">
         <div className="grid gap-3 md:grid-cols-3">
           <div>
             <label className="text-xs text-slate-500">Drive ID</label>
@@ -64,7 +109,19 @@ export function RegistrationsAdminPage() {
           </div>
           <div>
             <label className="text-xs text-slate-500">Status</label>
-            <input className={inputClass} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} placeholder="submitted / eligible / ..." />
+            <select className={inputClass} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+              <option value="">All statuses</option>
+              <option value="submitted">submitted</option>
+              <option value="eligible_pending_approval">eligible_pending_approval</option>
+              <option value="eligible">eligible</option>
+              <option value="ineligible">ineligible</option>
+              <option value="scheduled">scheduled</option>
+              <option value="assessed">assessed</option>
+              <option value="passed">passed</option>
+              <option value="failed">failed</option>
+              <option value="voucher_issued">voucher_issued</option>
+              <option value="closed">closed</option>
+            </select>
           </div>
           <div>
             <label className="text-xs text-slate-500">Search</label>
@@ -72,8 +129,8 @@ export function RegistrationsAdminPage() {
           </div>
         </div>
         <div className="mt-4">
-          <Button variant="ghost" onClick={() => rows.reload()}>
-            Refresh
+          <Button variant="ghost" onClick={() => setFilters({ drive_id: "", status: "", q: "" })}>
+            Clear Filters
           </Button>
         </div>
       </Card>
@@ -83,6 +140,16 @@ export function RegistrationsAdminPage() {
           columns={[
             { key: "id", label: "ID" },
             { key: "drive_id", label: "Drive" },
+            {
+              key: "certification_title",
+              label: "Certification",
+              render: (r) => (
+                <div>
+                  <div className="font-semibold text-white">{r.certification_title || r.exam_track || `Drive #${r.drive_id}`}</div>
+                  <div className="text-xs text-slate-500">{r.certification_provider || r.drive_name || ""}</div>
+                </div>
+              ),
+            },
             { key: "candidate_name", label: "Name" },
             { key: "candidate_email", label: "Email" },
             { key: "status", label: "Status" },
@@ -104,6 +171,8 @@ export function RegistrationsAdminPage() {
             },
           ]}
           rows={rows.data || []}
+          emptyMessage="No applications yet. Once a user registers for a drive, their application appears here."
+          maxHeight="520px"
         />
       </Card>
 

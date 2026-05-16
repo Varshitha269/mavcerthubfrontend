@@ -32,6 +32,12 @@ export function LearningPage() {
   const [uploadId, setUploadId] = useState(null);
   const [verifying, setVerifying] = useState(false);
   const [aiConfidence, setAiConfidence] = useState(null);
+  const [verificationResult, setVerificationResult] = useState(null);
+
+  const uploadsData = useAsyncData(
+    () => uploadsApi.my().then((r) => r.data),
+    [id]
+  );
 
   // Tasks state
   const tasksData = useAsyncData(
@@ -48,9 +54,27 @@ export function LearningPage() {
   const inputClass = "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
 
   useEffect(() => {
-    // If there's an existing upload or verification, we could fetch it here, 
-    // but for simplicity we rely on user actions within the session.
-  }, [enrollment]);
+    const latestUpload = (uploadsData.data || []).find(
+      (upload) => Number(upload.enrollment_id) === Number(id) && upload.purpose === "certificate"
+    );
+    if (latestUpload && latestUpload.id !== uploadId) {
+      setUploadId(latestUpload.id);
+      const stored = localStorage.getItem(`mch_cert_verification_${latestUpload.id}`);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setAiConfidence(parsed.confidence ?? null);
+          setVerificationResult(parsed);
+        } catch {
+          setAiConfidence(null);
+          setVerificationResult(null);
+        }
+      } else {
+        setAiConfidence(null);
+        setVerificationResult(null);
+      }
+    }
+  }, [uploadsData.data, id, uploadId]);
 
   if (enrollLoading || certLoading || !enrollment || !cert) {
     return <CardSkeleton />;
@@ -93,7 +117,10 @@ export function LearningPage() {
       formData.append("enrollment_id", id);
       const res = await uploadsApi.uploadMe(formData);
       setUploadId(res.data.id);
+      setAiConfidence(null);
+      setVerificationResult(null);
       toast.success("Certificate uploaded successfully");
+      uploadsData.reload();
     } catch (err) {
       toast.error("Failed to upload certificate");
     } finally {
@@ -101,15 +128,21 @@ export function LearningPage() {
     }
   };
 
-  const handleVerify = async () => {
-    if (!uploadId) return;
+  const handleVerify = async (targetUploadId = uploadId) => {
+    if (!targetUploadId) return;
     setVerifying(true);
     try {
-      const res = await aiApi.verifyCertificateUpload({ upload_id: uploadId });
+      const res = await aiApi.verifyCertificateUpload({ upload_id: targetUploadId });
       setAiConfidence(res.data.confidence);
-      toast.success("Verification complete");
+      setVerificationResult(res.data);
+      localStorage.setItem(`mch_cert_verification_${targetUploadId}`, JSON.stringify(res.data));
+      if (res.data.matched) {
+        toast.success("Certificate matches this enrollment.");
+      } else {
+        toast.error(res.data.reason || "Certificate does not match this enrollment.");
+      }
     } catch (err) {
-      toast.error("Failed to verify certificate");
+      toast.error(err?.response?.data?.detail || "Failed to verify certificate");
     } finally {
       setVerifying(false);
     }
@@ -301,14 +334,21 @@ export function LearningPage() {
                     <p className="text-sm font-medium text-white">Certificate Uploaded</p>
                     
                     {aiConfidence !== null ? (
-                      <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-white/5">
-                        <span className="text-sm text-slate-400">AI Confidence:</span>
-                        <span className={`text-sm font-bold ${aiConfidence >= 0.8 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          {Math.round(aiConfidence * 100)}%
-                        </span>
+                      <div className="space-y-2 rounded-lg border border-white/5 bg-slate-900/50 p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-400">Match confidence:</span>
+                          <span className={`text-sm font-bold ${verificationResult?.matched ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {Math.round(aiConfidence * 100)}%
+                          </span>
+                        </div>
+                        {verificationResult && (
+                          <div className={`rounded-lg px-3 py-2 text-xs ${verificationResult.matched ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'}`}>
+                            {verificationResult.reason}
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <Button onClick={handleVerify} loading={verifying} className="w-full justify-center">
+                      <Button onClick={() => handleVerify()} loading={verifying} className="w-full justify-center">
                         Verify with AI
                       </Button>
                     )}
@@ -317,7 +357,7 @@ export function LearningPage() {
                       <Button 
                         onClick={() => handleSaveStatus('completed')}
                         className="w-full justify-center !bg-emerald-500 hover:!bg-emerald-600"
-                        disabled={aiConfidence === null || aiConfidence < 0.8}
+                        disabled={!verificationResult?.matched}
                       >
                         Mark Completed
                       </Button>

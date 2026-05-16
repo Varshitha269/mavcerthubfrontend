@@ -16,6 +16,7 @@ export function ProfilePage() {
   const { data, loading, error, reload } = useAsyncData(() => profileApi.get().then((r) => r.data), []);
   const { data: badgesData, loading: badgesLoading } = useAsyncData(() => profileApi.badges().then((r) => r.data), []);
   const { data: certsData, loading: certsLoading } = useAsyncData(() => uploadsApi.certificates().then((r) => r.data), []);
+  const { data: driveHistory, loading: driveHistoryLoading } = useAsyncData(() => profileApi.driveHistory().then((r) => r.data), []);
 
   
   const [fullName, setFullName] = useState("");
@@ -153,6 +154,37 @@ export function ProfilePage() {
                     View File &rarr;
                   </a>
                 )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card title="Drive Attendance & Results" subtitle="Certification drives you registered for, attended, or completed">
+        {driveHistoryLoading ? (
+          <p className="text-slate-400 text-sm">Loading drive history...</p>
+        ) : (!driveHistory?.items || driveHistory.items.length === 0) ? (
+          <div className="text-center py-8 bg-white/[0.02] border border-white/5 border-dashed rounded-xl">
+            <p className="text-slate-400 text-sm">No drive attendance records yet.</p>
+          </div>
+        ) : (
+          <div className="max-h-[430px] space-y-3 overflow-auto pr-1">
+            {driveHistory.items.map((item) => (
+              <div key={item.registration_id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-white">{item.certification_title || item.drive_name}</h4>
+                    <p className="mt-1 text-xs text-slate-400">Drive #{item.drive_id} - {item.drive_name}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.outcome === "pass" ? "bg-emerald-500/15 text-emerald-200" : item.outcome === "fail" ? "bg-rose-500/15 text-rose-200" : "bg-slate-500/15 text-slate-200"}`}>
+                    {item.outcome || item.application_status}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
+                  <span>Score: {item.score ?? "-"}</span>
+                  <span>Assessed: {item.assessed_on || "-"}</span>
+                  <span>Status: {item.application_status}</span>
+                </div>
               </div>
             ))}
           </div>

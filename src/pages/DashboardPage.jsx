@@ -201,6 +201,14 @@ function AdminOverview() {
         <SummaryCard label="Success" value={`${metrics.success_rate ?? 0}%`} hint="Completed enrollments" accent="rose" />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SummaryCard label="Drive Total" value={metrics.total_drives ?? 0} hint="All certification drives" accent="blue" />
+        <SummaryCard label="Drive Active" value={metrics.open_drives ?? 0} hint={`${metrics.drive_active_rate ?? 0}% active rate`} accent="green" />
+        <SummaryCard label="Completed" value={metrics.completed_drives ?? 0} hint={`${metrics.drive_completion_rate ?? 0}% completion rate`} accent="cyan" />
+        <SummaryCard label="Drive Regs" value={metrics.drive_registrations ?? 0} hint="Drive applications" accent="violet" />
+        <SummaryCard label="Pass Rate" value={`${metrics.drive_pass_rate ?? 0}%`} hint={`${metrics.drive_assessments ?? 0} assessed`} accent="amber" />
+      </div>
+
       <SegmentedTabs
         active={tab}
         onChange={setTab}
@@ -245,8 +253,36 @@ function AdminOverview() {
             </ResponsiveContainer>
           </ChartPanel>
 
+          <ChartPanel title="Drive Status Mix" subtitle="Open, planned, completed, and closed drives">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={charts.drive_status || []} dataKey="value" nameKey="name" innerRadius={70} outerRadius={110} paddingAngle={4}>
+                  {(charts.drive_status || []).map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={tooltipStyle} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+
+          <ChartPanel title="Drive Registration Volume" subtitle="Top drives by user applications">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={charts.drive_activity || []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff15" />
+                <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} interval={0} angle={-15} textAnchor="end" height={80} />
+                <YAxis tick={{ fill: "#94a3b8", fontSize: 12 }} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="registrations" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+
           <Panel title="Exam Eligibility Outcomes" subtitle="Counts from eligibility tests before users enroll for exams">
             <MiniBars rows={charts.eligibility_tests || []} />
+          </Panel>
+
+          <Panel title="Drive Result Outcomes" subtitle="Assessment results for completed and conducted drives">
+            <MiniBars rows={charts.drive_results || []} />
           </Panel>
 
           <Panel title="Audit Stream" subtitle="Latest admin-side audit events">
@@ -358,7 +394,7 @@ function AdminOverview() {
 function ActivityRows({ rows }) {
   if (!rows.length) return <EmptyText>No admin activity yet.</EmptyText>;
   return (
-    <div className="space-y-3">
+    <div className="max-h-[420px] space-y-3 overflow-auto pr-1">
       {rows.map((item) => (
         <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">

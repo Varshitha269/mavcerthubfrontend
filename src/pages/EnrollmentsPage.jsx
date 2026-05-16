@@ -76,6 +76,7 @@ export function EnrollmentsPage() {
   const [editRow, setEditRow] = useState(null);
   const [editForm, setEditForm] = useState({ status: "", progress_percent: "", target_completion_date: "", notes: "" });
   const [busy, setBusy] = useState(false);
+  const [enrollBusyId, setEnrollBusyId] = useState(null);
 
   // Split enrollments
   const savedForLater = useMemo(
@@ -110,7 +111,7 @@ export function EnrollmentsPage() {
   }
 
   async function enrollNow(enrollment) {
-    setBusy(true);
+    setEnrollBusyId(enrollment.id);
     try {
       await enrollmentsApi.patch(enrollment.id, { status: "selected" });
       toast.success("You're now enrolled! Start your journey.");
@@ -118,7 +119,7 @@ export function EnrollmentsPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed");
     } finally {
-      setBusy(false);
+      setEnrollBusyId(null);
     }
   }
 
@@ -179,7 +180,7 @@ export function EnrollmentsPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       className="flex-1 !py-1.5 !text-xs"
-                      loading={busy}
+                      loading={enrollBusyId === e.id}
                       onClick={() => enrollNow(e)}
                     >
                       Enroll Now
