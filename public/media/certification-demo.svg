@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" role="img" aria-labelledby="title desc">
+  <title id="title">Animated certification dashboard demo</title>
+  <desc id="desc">A stylized animated dashboard showing certification operations, charts, cards, and activity rows.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#190019"/>
+      <stop offset="0.46" stop-color="#2b124c"/>
+      <stop offset="1" stop-color="#854f6c"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#fbe4d8"/>
+      <stop offset="0.55" stop-color="#dfb6b2"/>
+      <stop offset="1" stop-color="#854f6c"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="960" height="620" rx="42" fill="url(#bg)"/>
+  <g opacity="0.22">
+    <path d="M70 120h820M70 240h820M70 360h820M70 480h820M180 60v500M360 60v500M540 60v500M720 60v500" stroke="#fbe4d8"/>
+  </g>
+  <circle cx="770" cy="120" r="96" fill="#fbe4d8" opacity="0.12" filter="url(#glow)">
+    <animate attributeName="r" values="80;118;80" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <rect x="58" y="54" width="184" height="512" rx="28" fill="#180f2a" opacity="0.84"/>
+  <rect x="88" y="96" width="74" height="22" rx="11" fill="#fbe4d8"/>
+  <rect x="88" y="160" width="118" height="16" rx="8" fill="#dfb6b2" opacity="0.6"/>
+  <rect x="88" y="210" width="104" height="16" rx="8" fill="#dfb6b2" opacity="0.38"/>
+  <rect x="88" y="260" width="130" height="16" rx="8" fill="#dfb6b2" opacity="0.38"/>
+  <rect x="88" y="310" width="96" height="16" rx="8" fill="#dfb6b2" opacity="0.38"/>
+  <rect x="88" y="460" width="118" height="48" rx="16" fill="url(#accent)" opacity="0.9"/>
+  <g>
+    <rect x="284" y="76" width="252" height="120" rx="28" fill="#ffffff" opacity="0.09"/>
+    <rect x="314" y="108" width="96" height="18" rx="9" fill="#fbe4d8"/>
+    <rect x="314" y="146" width="174" height="24" rx="12" fill="#dfb6b2" opacity="0.5"/>
+    <animateTransform attributeName="transform" type="translate" values="0 0;0 12;0 0" dur="4s" repeatCount="indefinite"/>
+  </g>
+  <g>
+    <rect x="572" y="76" width="296" height="120" rx="28" fill="#ffffff" opacity="0.09"/>
+    <rect x="604" y="108" width="132" height="18" rx="9" fill="#fbe4d8"/>
+    <rect x="604" y="146" width="210" height="24" rx="12" fill="#dfb6b2" opacity="0.5"/>
+    <animateTransform attributeName="transform" type="translate" values="0 10;0 0;0 10" dur="4.8s" repeatCount="indefinite"/>
+  </g>
+  <rect x="284" y="236" width="584" height="154" rx="30" fill="#ffffff" opacity="0.08"/>
+  <path d="M330 340c60-84 116-28 176-72 78-58 130 46 210-34 44-44 86-34 112-18" fill="none" stroke="url(#accent)" stroke-width="12" stroke-linecap="round">
+    <animate attributeName="stroke-dasharray" values="40 900;260 900;40 900" dur="5s" repeatCount="indefinite"/>
+  </path>
+  <g transform="translate(284 428)">
+    <rect width="584" height="108" rx="26" fill="#ffffff" opacity="0.08"/>
+    <rect x="32" y="26" width="164" height="14" rx="7" fill="#fbe4d8" opacity="0.8"/>
+    <rect x="32" y="62" width="226" height="14" rx="7" fill="#dfb6b2" opacity="0.45"/>
+    <rect x="338" y="26" width="188" height="14" rx="7" fill="#fbe4d8" opacity="0.62"/>
+    <rect x="338" y="62" width="132" height="14" rx="7" fill="#dfb6b2" opacity="0.42"/>
+  </g>
+  <circle cx="850" cy="72" r="10" fill="#fbe4d8">
+    <animate attributeName="opacity" values="1;0.25;1" dur="1.8s" repeatCount="indefinite"/>
+  </circle>
+</svg>

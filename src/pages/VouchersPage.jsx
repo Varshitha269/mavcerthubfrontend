@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { certificationsApi, usersApi, vouchersApi } from "../services/api.js";
+import { aiApi, certificationsApi, drivesBrdApi, vouchersApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -18,12 +18,19 @@ export function VouchersPage() {
   const mine = useAsyncData(() => vouchersApi.my().then((r) => r.data), []);
   const adminList = useAsyncData(async () => (isAdmin ? vouchersApi.adminList().then((r) => r.data) : []), [isAdmin]);
   const certs = useAsyncData(() => certificationsApi.list().then((r) => r.data), []);
-  const users = useAsyncData(async () => (isAdmin ? usersApi.me().then(() => []) : []), [isAdmin]);
+  const drives = useAsyncData(async () => (isAdmin ? drivesBrdApi.adminList().then((r) => r.data) : []), [isAdmin]);
 
   const [issueOpen, setIssueOpen] = useState(false);
   const [issue, setIssue] = useState({ user_id: "", code: "", certification_id: "", notes: "" });
   const [edit, setEdit] = useState(null);
   const [editForm, setEditForm] = useState({ status: "issued", notes: "" });
+  const [aiDriveId, setAiDriveId] = useState("");
+  const [voucherRecommendations, setVoucherRecommendations] = useState([]);
+  const [recommendationInfo, setRecommendationInfo] = useState(null);
+  const [voucherBudget, setVoucherBudget] = useState("");
+  const [budgetResult, setBudgetResult] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [budgetBusy, setBudgetBusy] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function issueVoucher(e) {
@@ -63,6 +70,38 @@ export function VouchersPage() {
     }
   }
 
+  async function loadVoucherRecommendations() {
+    setAiBusy(true);
+    try {
+      const { data } = await aiApi.adminVoucherRecommendations({
+        drive_id: aiDriveId ? Number(aiDriveId) : undefined,
+      });
+      setVoucherRecommendations(data.recommendations || []);
+      setRecommendationInfo({ message: data.message, source: data.source });
+      toast.success("AI voucher recommendations loaded.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function optimizeVoucherBudget() {
+    setBudgetBusy(true);
+    try {
+      const { data } = await aiApi.adminVoucherBudgetOptimizer({
+        drive_id: aiDriveId ? Number(aiDriveId) : undefined,
+        budget: voucherBudget === "" ? undefined : Number(voucherBudget),
+      });
+      setBudgetResult(data);
+      toast.success("Voucher budget optimized.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBudgetBusy(false);
+    }
+  }
+
   function statusBadge(status) {
     const tone = status === "issued" ? "text-emerald-300 bg-emerald-500/10" : status === "redeemed" ? "text-indigo-300 bg-indigo-500/10" : "text-amber-300 bg-amber-500/10";
     return <span className={`rounded-full px-2.5 py-1 text-xs ${tone}`}>{status}</span>;
@@ -81,6 +120,68 @@ export function VouchersPage() {
         </div>
         {isAdmin && <Button onClick={() => setIssueOpen(true)}>Issue Voucher</Button>}
       </div>
+
+      {isAdmin && (
+        <Card title="Smart Voucher Allocation Recommendation" subtitle="Prioritizes eligible candidates most likely to complete successfully">
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div>
+              <label className="text-xs text-slate-500">Drive</label>
+              <select className={inputClass} value={aiDriveId} onChange={(e) => setAiDriveId(e.target.value)}>
+                <option value="">All drives with ready candidates</option>
+                {(drives.data || [])
+                  .filter((drive) => (drive.registrations_count || 0) > 0)
+                  .map((drive) => (
+                    <option key={drive.id} value={drive.id}>
+                      #{drive.id} - {drive.name} ({drive.voucher_ready_count || 0} ready)
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Budget</label>
+              <input className={inputClass} type="number" value={voucherBudget} onChange={(e) => setVoucherBudget(e.target.value)} placeholder="Auto" />
+            </div>
+            <Button variant="ghost" loading={aiBusy} onClick={loadVoucherRecommendations}>Get Recommendations</Button>
+            <Button variant="ghost" loading={budgetBusy} onClick={optimizeVoucherBudget}>Optimize Budget</Button>
+          </div>
+          {recommendationInfo && (
+            <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-300">
+              <p>{recommendationInfo.message}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Source: registrations table, statuses {recommendationInfo.source?.eligible_statuses?.join(", ")}.
+              </p>
+            </div>
+          )}
+          <Table
+            columns={[
+              { key: "registration_id", label: "Reg" },
+              { key: "candidate_email", label: "Candidate" },
+              { key: "score", label: "Score", render: (r) => `${r.score}%` },
+              { key: "priority", label: "Priority" },
+              { key: "reason", label: "Reason" },
+            ]}
+            rows={voucherRecommendations}
+            emptyMessage="Click Get Recommendations to view AI voucher allocation suggestions."
+          />
+          {budgetResult && (
+            <div className="mt-5">
+              <p className="mb-3 text-sm text-slate-400">{budgetResult.summary}</p>
+              <Table
+                columns={[
+                  { key: "allocation_rank", label: "Rank" },
+                  { key: "candidate_email", label: "Candidate" },
+                  { key: "score", label: "Score", render: (row) => `${row.score}%` },
+                  { key: "priority", label: "Priority" },
+                  { key: "budget_reason", label: "Reason" },
+                ]}
+                rows={budgetResult.allocations || []}
+                emptyMessage="No allocations inside this budget."
+                maxHeight={300}
+              />
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card title={isAdmin ? "All Vouchers" : "Assigned Vouchers"}>
         <Table

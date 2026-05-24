@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { certificationsApi, enrollmentsApi } from "../services/api.js";
+import { aiApi, certificationsApi, enrollmentsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
 import { Button } from "../components/Button.jsx";
 import { Modal } from "../components/Modal.jsx";
+import { Table } from "../components/Table.jsx";
 import { CardSkeleton } from "../components/Skeleton.jsx";
 
 // ── Category config ──────────────────────────────────────────────────────────
@@ -52,6 +53,11 @@ const LEVEL_COLORS = {
 
 const inputClass =
   "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
+
+function ScorePill({ value }) {
+  const tone = value >= 75 ? "bg-emerald-500/15 text-emerald-200" : value >= 50 ? "bg-amber-500/15 text-amber-200" : "bg-rose-500/15 text-rose-200";
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{value}%</span>;
+}
 
 // ── Cert icon badge ──────────────────────────────────────────────────────────
 function CertIcon({ category }) {
@@ -292,6 +298,10 @@ export function CertificationsPage() {
   const [testModal, setTestModal] = useState(null);
   const [testAnswers, setTestAnswers] = useState({});
   const [testResult, setTestResult] = useState(null);
+  const [resumeText, setResumeText] = useState("");
+  const [resumeGoal, setResumeGoal] = useState("Cloud Engineer");
+  const [resumeResult, setResumeResult] = useState(null);
+  const [resumeBusy, setResumeBusy] = useState(false);
 
   // Data
   const { data: certs, loading, error, reload } = useAsyncData(
@@ -491,6 +501,23 @@ export function CertificationsPage() {
     }
   }
 
+  async function generateResumeRecommendations() {
+    if (!resumeText.trim()) {
+      toast.error("Paste resume or profile text first.");
+      return;
+    }
+    setResumeBusy(true);
+    try {
+      const { data } = await aiApi.resumeRecommendations({ resume_text: resumeText, goal: resumeGoal });
+      setResumeResult(data);
+      toast.success("Resume recommendations generated.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Resume recommendation failed");
+    } finally {
+      setResumeBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* ── Page header ── */}
@@ -512,6 +539,37 @@ export function CertificationsPage() {
       </div>
 
       {/* ── Search + filter bar ── */}
+      {!isAdmin && (
+        <Card title="Resume-to-Certification Recommender" subtitle="Paste your resume or profile summary to find the best catalog matches">
+          <div className="grid gap-3 lg:grid-cols-[240px_1fr_auto] lg:items-end">
+            <div>
+              <label className="text-xs text-slate-500">Target role</label>
+              <input className={inputClass} value={resumeGoal} onChange={(e) => setResumeGoal(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Resume / profile text</label>
+              <textarea className={`${inputClass} min-h-[88px]`} value={resumeText} onChange={(e) => setResumeText(e.target.value)} placeholder="Paste skills, projects, tools, or resume summary..." />
+            </div>
+            <Button loading={resumeBusy} onClick={generateResumeRecommendations}>Recommend</Button>
+          </div>
+          {resumeResult && (
+            <div className="mt-4">
+              <Table
+                rows={resumeResult.recommendations || []}
+                maxHeight={320}
+                columns={[
+                  { key: "title", label: "Certification" },
+                  { key: "provider", label: "Provider" },
+                  { key: "resume_match_score", label: "Match", render: (row) => <ScorePill value={row.resume_match_score} /> },
+                  { key: "reason", label: "Reason" },
+                ]}
+                emptyMessage="No resume recommendations yet."
+              />
+            </div>
+          )}
+        </Card>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* Search */}
         <div className="relative flex-1">

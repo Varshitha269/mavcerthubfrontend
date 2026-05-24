@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 const ThemeContext = createContext(null);
 
 const STORAGE_KEY = "mch_theme";
+const THEMES = new Set(["dark", "light", "auto"]);
 
 function getSystemPref() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -15,7 +16,8 @@ function resolveTheme(pref) {
 
 export function ThemeProvider({ children }) {
   const [preference, setPreference] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY) || "dark";
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return THEMES.has(stored) ? stored : "dark";
   });
 
   const resolved = useMemo(() => resolveTheme(preference), [preference]);
@@ -39,7 +41,7 @@ export function ThemeProvider({ children }) {
   }, [preference]);
 
   const setTheme = useCallback((t) => {
-    setPreference(t);
+    setPreference(THEMES.has(t) ? t : "dark");
   }, []);
 
   const value = useMemo(

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { certificationsApi, drivesBrdApi } from "../services/api.js";
+import { aiApi, certificationsApi, drivesBrdApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -45,6 +45,11 @@ export function DrivesBrdAdminPage() {
   const [busy, setBusy] = useState(false);
   const [busyAction, setBusyAction] = useState(null);
   const [driveFilter, setDriveFilter] = useState("all");
+  const [aiDriveId, setAiDriveId] = useState("");
+  const [aiInsight, setAiInsight] = useState(null);
+  const [aiReport, setAiReport] = useState(null);
+  const [reconductRows, setReconductRows] = useState([]);
+  const [passRateRows, setPassRateRows] = useState([]);
 
   const inputClass =
     "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
@@ -271,6 +276,55 @@ export function DrivesBrdAdminPage() {
     }
   }
 
+  async function loadAiInsight(kind) {
+    if (!aiDriveId) {
+      toast.error("Enter a drive ID first.");
+      return;
+    }
+    setBusyAction(`ai-${kind}`);
+    try {
+      const { data } = kind === "report"
+        ? await aiApi.adminDriveReport(Number(aiDriveId))
+        : await aiApi.adminDriveSummary(Number(aiDriveId));
+      if (kind === "report") {
+        setAiReport(data);
+      } else {
+        setAiInsight(data);
+      }
+      toast.success(kind === "report" ? "AI drive report generated." : "AI drive insights loaded.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function loadReconductRecommendations() {
+    setBusyAction("ai-reconduct");
+    try {
+      const { data } = await aiApi.adminReconductRecommendations();
+      setReconductRows(data.recommendations || []);
+      toast.success("AI re-conduct recommendations loaded.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function loadPassRatePredictions() {
+    setBusyAction("ai-passrate");
+    try {
+      const { data } = await aiApi.adminPassRatePredictor({ drive_id: aiDriveId ? Number(aiDriveId) : undefined });
+      setPassRateRows(data.predictions || []);
+      toast.success("AI pass-rate predictions loaded.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -285,6 +339,82 @@ export function DrivesBrdAdminPage() {
           <Button onClick={() => { setCreateOpen(true); setCertPickerOpen(false); }}>New Drive</Button>
         </div>
       </div>
+
+      <Card title="AI Drive Summary & One-click Report" subtitle="Use this inside drive management to spot risks and next actions">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-xs text-slate-500">Drive ID</label>
+            <input className={inputClass} value={aiDriveId} onChange={(e) => setAiDriveId(e.target.value)} placeholder="Use an ID from the table below" />
+          </div>
+          <Button variant="ghost" loading={busyAction === "ai-summary"} onClick={() => loadAiInsight("summary")}>AI Summary</Button>
+          <Button variant="ghost" loading={busyAction === "ai-report"} onClick={() => loadAiInsight("report")}>One-click Report</Button>
+          <Button variant="ghost" loading={busyAction === "ai-reconduct"} onClick={loadReconductRecommendations}>Re-Conduct AI</Button>
+          <Button variant="ghost" loading={busyAction === "ai-passrate"} onClick={loadPassRatePredictions}>Pass Rate AI</Button>
+        </div>
+        {(aiInsight || aiReport) && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            {aiInsight && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                <h3 className="font-semibold text-white">Summary</h3>
+                <p className="mt-2 text-sm text-slate-400">{aiInsight.summary}</p>
+              </div>
+            )}
+            {aiInsight && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-white">Risks</h3>
+                <div className="space-y-2">{(aiInsight.risks || []).map((risk) => <div key={risk} className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-100">{risk}</div>)}</div>
+              </div>
+            )}
+            {aiInsight && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-white">Next actions</h3>
+                <div className="space-y-2">{(aiInsight.next_actions || []).map((action) => <div key={action} className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">{action}</div>)}</div>
+              </div>
+            )}
+            {aiReport && (
+              <div className="rounded-xl border border-indigo-400/20 bg-indigo-500/10 p-4 lg:col-span-3">
+                <h3 className="font-semibold text-white">{aiReport.title}</h3>
+                <p className="mt-2 text-sm text-indigo-100">{aiReport.executive_summary}</p>
+              </div>
+            )}
+          </div>
+        )}
+        {(reconductRows.length > 0 || passRateRows.length > 0) && (
+          <div className="mt-5 grid gap-5 xl:grid-cols-2">
+            {reconductRows.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-white">AI Re-Conduct Recommendation</h3>
+                <Table
+                  rows={reconductRows}
+                  maxHeight={320}
+                  columns={[
+                    { key: "drive_id", label: "Drive" },
+                    { key: "drive_name", label: "Name" },
+                    { key: "reconduct_score", label: "Score", render: (row) => `${row.reconduct_score}%` },
+                    { key: "recommended_action", label: "Action" },
+                  ]}
+                />
+              </div>
+            )}
+            {passRateRows.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-white">AI Pass Rate Predictor</h3>
+                <Table
+                  rows={passRateRows}
+                  maxHeight={320}
+                  columns={[
+                    { key: "drive_id", label: "Drive" },
+                    { key: "predicted_pass_rate", label: "Predicted", render: (row) => `${row.predicted_pass_rate}%` },
+                    { key: "confidence", label: "Confidence", render: (row) => `${row.confidence}%` },
+                    { key: "risk_level", label: "Risk" },
+                    { key: "recommended_action", label: "Action" },
+                  ]}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
 
       <Card title="All drives" subtitle="Every certification drive in the system, including ongoing and completed drives">
         <div className="mb-4 flex flex-wrap gap-2">

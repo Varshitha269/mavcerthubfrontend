@@ -2,7 +2,7 @@ import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./context/AuthContext.jsx";
 import { Layout } from "./components/Layout.jsx";
-import { LoginPage } from "./pages/LoginPage.jsx";
+import { PublicLandingPage } from "./pages/PublicLandingPage.jsx";
 import { HomePage } from "./pages/HomePage.jsx";
 import { DashboardPage } from "./pages/DashboardPage.jsx";
 import { SettingsPage } from "./pages/SettingsPage.jsx";
@@ -33,7 +33,7 @@ function Protected({ children }) {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/welcome" replace />;
   return children;
 }
 
@@ -45,7 +45,8 @@ function RoleHome() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/welcome" element={<PublicLandingPage />} />
+      <Route path="/login" element={<PublicLandingPage />} />
       <Route
         path="/"
         element={

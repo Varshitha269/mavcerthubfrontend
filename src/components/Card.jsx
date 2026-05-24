@@ -3,7 +3,7 @@ import React from "react";
 export function Card({ title, subtitle, children, className = "", actions }) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl p-6 shadow-xl shadow-black/20 backdrop-blur-xl transition duration-300 ${className}`}
+      className={`group relative overflow-hidden rounded-2xl p-6 shadow-xl shadow-black/15 backdrop-blur-xl transition duration-300 ${className}`}
       style={{
         border: "1px solid var(--color-border)",
         backgroundColor: "var(--color-bg-surface)",
@@ -13,6 +13,7 @@ export function Card({ title, subtitle, children, className = "", actions }) {
         className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full blur-2xl transition group-hover:opacity-100"
         style={{ background: `radial-gradient(circle, var(--color-bg-card-glow), transparent)` }}
       />
+      <div className="mch-card-accent absolute inset-x-0 top-0 h-1 opacity-80" />
       {(title || subtitle || actions) && (
         <div className="relative mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>

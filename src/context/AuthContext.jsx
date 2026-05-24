@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(!!tokenStorage.getAccess());
+  const [authTransition, setAuthTransition] = useState(null);
 
   const fetchMe = useCallback(async () => {
     if (!tokenStorage.getAccess()) {
@@ -42,22 +43,27 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    if (authTransition?.type === "logout") return;
+    setAuthTransition({ type: "logout" });
     tokenStorage.clear();
+    await new Promise((resolve) => setTimeout(resolve, 5000));
     setUser(null);
-  }, []);
+    setAuthTransition(null);
+  }, [authTransition?.type]);
 
   const value = useMemo(
     () => ({
       user,
       loading,
+      authTransition,
       isAdmin: user?.role === "admin",
       login,
       register,
       logout,
       refreshUser: fetchMe,
     }),
-    [user, loading, login, register, logout, fetchMe]
+    [user, loading, authTransition, login, register, logout, fetchMe]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { eligibilityAdminApi, registrationsApi } from "../services/api.js";
+import { aiApi, eligibilityAdminApi, registrationsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -45,6 +45,8 @@ export function EligibilityApprovalsAdminPage() {
   const [approvalOpen, setApprovalOpen] = useState(null);
   const [decision, setDecision] = useState({ status: "approved", decision_notes: "" });
   const [approvalForm, setApprovalForm] = useState({ level: 1, approver_email: "" });
+  const [candidateRanking, setCandidateRanking] = useState([]);
+  const [rankingBusy, setRankingBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const eligibilityStats = useMemo(() => {
     const regs = registrations.data || [];
@@ -111,6 +113,21 @@ export function EligibilityApprovalsAdminPage() {
     }
   }
 
+  async function rankCandidates() {
+    setRankingBusy(true);
+    try {
+      const { data } = await aiApi.adminCandidateRanking({
+        drive_id: regFilters.drive_id ? Number(regFilters.drive_id) : undefined,
+      });
+      setCandidateRanking(data.candidates || []);
+      toast.success("AI candidate ranking loaded.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setRankingBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -132,7 +149,7 @@ export function EligibilityApprovalsAdminPage() {
         ))}
       </div>
 
-      <Card title="Evaluate eligibility" subtitle="POST /admin/eligibility/evaluate">
+      <Card title="Evaluate eligibility" >
         <p className="mb-4 text-sm leading-6 text-slate-400">
           Use a Registration ID from the table below. Evaluation reads the registration's drive, applies the drive eligibility rules, updates registration status, and creates a pending approval when manual review is required.
         </p>
@@ -145,6 +162,26 @@ export function EligibilityApprovalsAdminPage() {
             Evaluate
           </Button>
         </div>
+      </Card>
+
+      <Card
+        title="AI Candidate Ranking for Drive Approvals"
+        subtitle="Ranks candidates by eligibility status, prior attempts, progress, uploaded evidence, and readiness signals"
+        actions={<Button variant="ghost" loading={rankingBusy} onClick={rankCandidates}>Rank Candidates</Button>}
+      >
+        <Table
+          columns={[
+            { key: "registration_id", label: "Reg ID" },
+            { key: "drive_id", label: "Drive" },
+            { key: "candidate_name", label: "Name" },
+            { key: "candidate_email", label: "Email" },
+            { key: "score", label: "Score", render: (r) => `${r.score}%` },
+            { key: "recommendation", label: "Recommendation" },
+            { key: "reason", label: "Reason", render: (r) => r.reasons?.[0] || "-" },
+          ]}
+          rows={candidateRanking}
+          emptyMessage="Click Rank Candidates to load AI approval recommendations."
+        />
       </Card>
 
       <Card title="Registrations needing evaluation" subtitle="Registration IDs come from this table">
@@ -194,7 +231,7 @@ export function EligibilityApprovalsAdminPage() {
         />
       </Card>
 
-      <Card title="Approvals inbox" subtitle="GET /admin/eligibility/approvals">
+      <Card title="Approvals inbox">
         <div className="mb-4 grid gap-3 md:grid-cols-3">
           <div>
             <label className="text-xs text-slate-500">Status</label>

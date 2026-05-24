@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { profileApi, usersApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
@@ -22,6 +22,15 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
   const [confirmDeact, setConfirmDeact] = useState(false);
 
+  useEffect(() => {
+    setSelectedTheme(theme);
+  }, [theme]);
+
+  function changeTheme(value) {
+    setSelectedTheme(value);
+    setTheme(value);
+  }
+
   async function changePassword(e) {
     e.preventDefault();
     setBusy(true);
@@ -41,8 +50,8 @@ export function SettingsPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await profileApi.patchPreferences({ theme: selectedTheme });
       setTheme(selectedTheme);
+      await profileApi.patchPreferences({ theme: selectedTheme });
       toast.success("Preferences saved.");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed");
@@ -107,13 +116,13 @@ export function SettingsPage() {
           <form onSubmit={savePrefs} className="space-y-4">
             <div>
               <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Theme</label>
-              <select className={inputClass} value={selectedTheme} onChange={(e) => setSelectedTheme(e.target.value)}>
+              <select className={inputClass} value={selectedTheme} onChange={(e) => changeTheme(e.target.value)}>
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
                 <option value="auto">Auto</option>
               </select>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Language</label>
                 <select className={inputClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
@@ -128,7 +137,7 @@ export function SettingsPage() {
                   <option>United States</option>
                 </select>
               </div>
-            </div>
+            </div> */}
             <Button type="submit" loading={busy} variant="ghost">Save Preferences</Button>
           </form>
         </Card>

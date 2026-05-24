@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { enrollmentsApi, uploadsApi } from "../services/api.js";
+import { aiApi, enrollmentsApi, uploadsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -42,6 +42,8 @@ export function UploadsPage() {
   const [enrollmentId, setEnrollmentId] = useState("");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(null);
+  const [aiCheckBusy, setAiCheckBusy] = useState(null);
+  const [aiConfidence, setAiConfidence] = useState(null);
 
   const uploadedPurposes = useMemo(() => new Set((uploads.data || []).map((u) => u.purpose)), [uploads.data]);
   const activeEnrollments = (enrollments.data || []).filter((e) => e.status !== "saved_for_later");
@@ -93,6 +95,19 @@ export function UploadsPage() {
     }
   }
 
+  async function checkCertificateConfidence(upload) {
+    setAiCheckBusy(upload.id);
+    try {
+      const { data } = await aiApi.adminCertificateConfidence({ upload_id: upload.id });
+      setAiConfidence(data);
+      toast.success("AI certificate confidence checked.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setAiCheckBusy(null);
+    }
+  }
+
   function renderUploadRows(rows, emptyMessage) {
     if (rows.length === 0) return <p className="text-sm text-slate-400">{emptyMessage}</p>;
     return rows.map((upload) => {
@@ -113,6 +128,7 @@ export function UploadsPage() {
             <span className={`rounded-full px-2.5 py-1 text-xs ${status.cls}`}>{status.label}</span>
             {isAdmin && currentStatus === "under_review" && (
               <>
+                <Button className="!py-1.5 !px-3 !text-xs" variant="ghost" loading={aiCheckBusy === upload.id} onClick={() => checkCertificateConfidence(upload)}>AI Check</Button>
                 <Button className="!py-1.5 !px-3 !text-xs" loading={reviewBusy === `approved-${upload.id}`} onClick={() => review(upload, "approved")}>Approve</Button>
                 <Button variant="danger" className="!py-1.5 !px-3 !text-xs" loading={reviewBusy === `rejected-${upload.id}`} onClick={() => review(upload, "rejected")}>Reject</Button>
               </>
@@ -193,6 +209,28 @@ export function UploadsPage() {
 
       {isAdmin ? (
         <>
+          {aiConfidence && (
+            <Card title="AI Certificate Verification Confidence" subtitle="Scoring result for the selected upload">
+              <div className="grid gap-4 md:grid-cols-[0.7fr_1.3fr]">
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Confidence</div>
+                  <div className="mt-2 font-display text-3xl font-bold text-white">{aiConfidence.confidence}%</div>
+                  <div className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${aiConfidence.matched ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-200"}`}>
+                    {aiConfidence.status}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <h3 className="font-semibold text-white">{aiConfidence.filename || `Upload #${aiConfidence.upload_id}`}</h3>
+                  <p className="mt-2 text-sm text-slate-400">{aiConfidence.reason}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(aiConfidence.signals || []).map((signal) => (
+                      <span key={signal} className="rounded-full bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-200">{signal}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
           <Card title="Pending Documents" subtitle="Only documents waiting for review appear here">
             <div className="space-y-3">{renderUploadRows(pendingUploads, "No pending documents.")}</div>
           </Card>

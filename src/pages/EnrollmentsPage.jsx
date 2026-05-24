@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { certificationsApi, enrollmentsApi, tasksApi, vouchersApi } from "../services/api.js";
+import { aiApi, certificationsApi, enrollmentsApi, tasksApi, vouchersApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -32,6 +32,11 @@ function StatusBadge({ status }) {
   );
 }
 
+function ScorePill({ value }) {
+  const tone = value >= 75 ? "bg-emerald-500/15 text-emerald-200" : value >= 50 ? "bg-amber-500/15 text-amber-200" : "bg-rose-500/15 text-rose-200";
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{value}%</span>;
+}
+
 const inputClass =
   "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500/50";
 
@@ -42,6 +47,7 @@ export function EnrollmentsPage() {
   const certs = useAsyncData(() => certificationsApi.list().then((r) => r.data), []);
   const vouchers = useAsyncData(() => vouchersApi.my().then((r) => r.data), []);
   const tasks = useAsyncData(() => tasksApi.my().then((r) => r.data), []);
+  const readiness = useAsyncData(() => aiApi.examReadiness().then((r) => r.data), []);
   const [adminUserId, setAdminUserId] = useState("");
   const [adminCertId, setAdminCertId] = useState("");
   const adminList = useAsyncData(async () => {
@@ -142,6 +148,22 @@ export function EnrollmentsPage() {
         <h2 className="font-display text-2xl font-bold text-white">My Enrollments</h2>
         <p className="text-slate-400">Track your learning journey and manage certifications</p>
       </div>
+
+      <Card title="AI Exam Readiness Score" subtitle="Predicts whether each active enrollment is ready for exam booking or voucher use">
+        <Table
+          columns={[
+            { key: "certification", label: "Certification" },
+            { key: "readiness_score", label: "Ready", render: (row) => <ScorePill value={row.readiness_score} /> },
+            { key: "readiness_level", label: "Level" },
+            { key: "open_tasks", label: "Open Tasks" },
+            { key: "overdue_tasks", label: "Overdue" },
+            { key: "recommended_action", label: "Action" },
+          ]}
+          rows={readiness.data?.readiness || []}
+          emptyMessage={readiness.loading ? "Calculating readiness..." : "No active enrollments to score yet."}
+          maxHeight={360}
+        />
+      </Card>
 
       {/* ── Saved for Later ── */}
       {savedForLater.length > 0 && (
@@ -246,13 +268,13 @@ export function EnrollmentsPage() {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link to={`/learning/${e.id}`}><Button variant="ghost" className="!py-1.5 !text-xs">Open Plan</Button></Link>
-                  <Button
+                  {/* <Button
                     className="!py-1.5 !text-xs"
                     disabled={!voucher?.code}
                     onClick={() => downloadVoucher(voucher, cert?.title || `Certification #${e.certification_id}`)}
                   >
                     Download Voucher
-                  </Button>
+                  </Button> */}
                 </div>
               </Card>
             );

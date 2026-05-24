@@ -62,7 +62,7 @@ export function AiChatWidget() {
       <div className="fixed bottom-6 right-6 z-50">
         <Button
           onClick={() => setIsOpen(true)}
-          className="!rounded-full !w-14 !h-14 !p-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-700 hover:to-fuchsia-700"
+          className="mch-primary-button !h-14 !w-14 !rounded-full !p-0 shadow-lg transition-all duration-300 hover:shadow-xl"
           title="AI Assistant"
         >
           <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -74,11 +74,11 @@ export function AiChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 h-[500px] max-h-[80vh] bg-slate-900 rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-50 flex h-[500px] max-h-[80vh] w-96 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-white/10 bg-gradient-to-r from-indigo-600/20 to-fuchsia-600/20">
+      <div className="mch-topbar flex items-center justify-between border-b border-white/10 p-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 flex items-center justify-center">
+          <div className="mch-brand-mark flex h-8 w-8 items-center justify-center rounded-full">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
@@ -109,7 +109,7 @@ export function AiChatWidget() {
             <div
               className={`max-w-[80%] p-3 rounded-xl ${
                 message.role === 'user'
-                  ? 'bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white'
+                  ? 'mch-primary-button text-white'
                   : 'bg-white/10 text-slate-300 border border-white/20'
               }`}
             >

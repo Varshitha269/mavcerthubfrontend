@@ -52,8 +52,8 @@ function Icon({ name, active }) {
     <span
       className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 transition ${
         active
-          ? "bg-slate-950 text-cyan-300 ring-slate-900/20"
-          : "bg-white/10 text-slate-200 ring-white/10 group-hover:text-cyan-200"
+          ? "bg-slate-950 text-cyan-300 ring-cyan-300/20"
+          : "bg-white/10 text-slate-200 ring-white/10 group-hover:bg-cyan-300/15 group-hover:text-cyan-100"
       }`}
     >
       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -73,7 +73,7 @@ function Section({ title, items, onNavigate }) {
             <span
               className={`group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition ${
                 isActive
-                  ? "bg-white text-slate-950 shadow-sm"
+                  ? "bg-white text-slate-950 shadow-sm shadow-cyan-950/20"
                   : "text-slate-400 hover:bg-white/10 hover:text-white"
               }`}
             >
@@ -88,7 +88,7 @@ function Section({ title, items, onNavigate }) {
 }
 
 export function Sidebar({ onNavigate }) {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout, authTransition } = useAuth();
 
   const userJourney = [
     { to: "/home", label: "Home", icon: "home" },
@@ -123,10 +123,11 @@ export function Sidebar({ onNavigate }) {
   ];
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col bg-[#0f172a] text-white shadow-2xl shadow-slate-950/20">
-      <div className="border-b border-white/10 p-5">
+    <aside className="mch-sidebar relative flex h-full w-72 shrink-0 flex-col overflow-hidden text-white shadow-2xl shadow-slate-950/25">
+      <div className="mch-accent-strip absolute inset-x-0 top-0 h-1" />
+      <div className="border-b border-white/10 p-5 pt-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400 text-lg font-black text-slate-950">M</div>
+          <div className="mch-brand-mark flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-black shadow-lg shadow-cyan-950/30">M</div>
           <div>
             <div className="text-lg font-bold tracking-tight">Maverick</div>
             <p className="text-xs text-slate-400">{isAdmin ? "Admin Dashboard" : "Certification Portal"}</p>
@@ -149,19 +150,20 @@ export function Sidebar({ onNavigate }) {
       </nav>
 
       <div className="border-t border-white/10 p-4">
-        <div className="rounded-2xl bg-white/10 p-3">
+        <div className="rounded-2xl border border-white/10 bg-white/10 p-3 shadow-inner shadow-white/5">
           <div className="truncate text-sm font-semibold text-white">{user?.full_name || user?.email}</div>
           <div className="mt-1 truncate text-xs text-slate-400">{user?.email}</div>
-          <div className="mt-2 inline-flex rounded-full bg-cyan-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-200">
+          <div className="mt-2 inline-flex rounded-full bg-cyan-400/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-100 ring-1 ring-cyan-300/20">
             {user?.role}
           </div>
         </div>
         <button
           type="button"
           onClick={logout}
+          disabled={authTransition?.type === "logout"}
           className="mt-3 w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white"
         >
-          Sign out
+          {authTransition?.type === "logout" ? "Signing out..." : "Sign out"}
         </button>
       </div>
     </aside>

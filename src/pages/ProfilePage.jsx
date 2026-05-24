@@ -1,14 +1,20 @@
 import React, { useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { profileApi, uploadsApi } from "../services/api.js";
+import { aiApi, profileApi, uploadsApi } from "../services/api.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useTheme } from "../context/ThemeContext.jsx";
 import { Card } from "../components/Card.jsx";
 import { Button } from "../components/Button.jsx";
 import { CardSkeleton } from "../components/Skeleton.jsx";
+import { Table } from "../components/Table.jsx";
 
 const inputClass =
   "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20";
+
+function ScorePill({ value }) {
+  const tone = value >= 75 ? "bg-emerald-500/15 text-emerald-200" : value >= 50 ? "bg-amber-500/15 text-amber-200" : "bg-rose-500/15 text-rose-200";
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>{value}%</span>;
+}
 
 export function ProfilePage() {
   const toast = useToast();
@@ -17,6 +23,8 @@ export function ProfilePage() {
   const { data: badgesData, loading: badgesLoading } = useAsyncData(() => profileApi.badges().then((r) => r.data), []);
   const { data: certsData, loading: certsLoading } = useAsyncData(() => uploadsApi.certificates().then((r) => r.data), []);
   const { data: driveHistory, loading: driveHistoryLoading } = useAsyncData(() => profileApi.driveHistory().then((r) => r.data), []);
+  const { data: roadmapData, loading: roadmapLoading } = useAsyncData(() => aiApi.userRoadmap().then((r) => r.data), []);
+  const { data: matchesData, loading: matchesLoading } = useAsyncData(() => aiApi.certificationMatches().then((r) => r.data), []);
 
   
   const [fullName, setFullName] = useState("");
@@ -24,6 +32,8 @@ export function ProfilePage() {
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [selectedTheme, setSelectedTheme] = useState(theme);
+  const [goal, setGoal] = useState("Cloud Engineer");
+  const [learningPath, setLearningPath] = useState(null);
   const [busy, setBusy] = useState(false);
 
   React.useEffect(() => {
@@ -80,6 +90,25 @@ export function ProfilePage() {
     }
   }
 
+  // function changeTheme(value) {
+  //   setSelectedTheme(value);
+  //   applyTheme(value);
+  // }
+
+  async function generateLearningPath(e) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { data: path } = await aiApi.learningPath({ goal });
+      setLearningPath(path);
+      toast.success("Learning path generated.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !data) return <CardSkeleton />;
   if (error) return <Card title="Profile"><p className="text-rose-300">{error}</p></Card>;
 
@@ -88,6 +117,88 @@ export function ProfilePage() {
       <div>
         <h2 className="font-display text-2xl font-bold text-white">Profile & Security</h2>
         <p className="text-slate-400">Manage your account details and view your earned achievements.</p>
+      </div>
+
+      <Card title="AI Career Roadmap & Skill Gaps" subtitle="Personalized from your certifications, enrollments, and profile activity">
+        {roadmapLoading ? (
+          <p className="text-sm text-slate-400">Loading AI roadmap...</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              {[
+                ["Current level", roadmapData?.profile?.level || "-"],
+                ["Completed", roadmapData?.profile?.completed_count ?? 0],
+                ["Active", roadmapData?.profile?.active_count ?? 0],
+                ["Providers", roadmapData?.profile?.preferred_providers?.join(", ") || "-"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+                  <div className="mt-2 text-lg font-bold text-white">{value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {(roadmapData?.roadmap || []).map((step) => (
+                <div key={step.stage} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-indigo-300">{step.stage}</div>
+                  <div className="mt-2 font-semibold text-white">{step.title}</div>
+                  <p className="mt-1 text-sm text-slate-400">{step.details}</p>
+                </div>
+              ))}
+            </div>
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-white">Skill gaps to close</h3>
+              <div className="flex flex-wrap gap-2">
+                {(roadmapData?.skill_gaps || []).length ? roadmapData.skill_gaps.map((gap) => (
+                  <span key={gap} className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-200">{gap}</span>
+                )) : <span className="text-sm text-slate-500">No clear gaps detected yet.</span>}
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card title="AI Certification Match Scores" subtitle="Best-fit certifications and reasons">
+          <Table
+            rows={(matchesData?.matches || []).slice(0, 8)}
+            maxHeight={360}
+            columns={[
+              { key: "title", label: "Certification" },
+              { key: "provider", label: "Provider" },
+              { key: "match_score", label: "Match", render: (row) => <ScorePill value={row.match_score} /> },
+              { key: "reason", label: "Reason", render: (row) => row.reasons?.[0] || "-" },
+            ]}
+            emptyMessage={matchesLoading ? "Loading AI matches..." : "No matches available yet."}
+          />
+        </Card>
+
+        <Card title="AI Learning Path Generator" subtitle="Generate a role-based certification sequence">
+          <form onSubmit={generateLearningPath} className="space-y-3">
+            <div>
+              <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Career goal</label>
+              <input className={inputClass} value={goal} onChange={(e) => setGoal(e.target.value)} />
+            </div>
+            <Button type="submit" loading={busy}>Generate Path</Button>
+          </form>
+          {learningPath && (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-slate-400">{learningPath.summary}</p>
+              {learningPath.steps.slice(0, 4).map((step) => (
+                <div key={step.step} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs text-slate-500">Step {step.step}</div>
+                      <div className="text-sm font-semibold text-white">{step.certification.title}</div>
+                    </div>
+                    <ScorePill value={step.match_score} />
+                  </div>
+                  <p className="mt-2 text-xs text-slate-400">{step.focus}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Earned Badges Section */}
@@ -223,11 +334,11 @@ export function ProfilePage() {
           </Button>
         </form>
       </Card>
-      <Card title="Preferences">
+      {/* <Card title="Preferences">
         <form onSubmit={savePrefs} className="max-w-md space-y-4">
           <div>
             <label className="text-xs font-medium uppercase tracking-wider text-slate-500">Theme</label>
-            <select className={inputClass} value={selectedTheme} onChange={(e) => setSelectedTheme(e.target.value)}>
+            <select className={inputClass} value={selectedTheme} onChange={(e) => changeTheme(e.target.value)}>
               <option value="dark">Dark</option>
               <option value="light">Light</option>
               <option value="auto">Auto (system)</option>
@@ -237,7 +348,7 @@ export function ProfilePage() {
             Save preferences
           </Button>
         </form>
-      </Card>
+      </Card> */}
     </div>
   );
 }

@@ -256,7 +256,6 @@ export function HomePage() {
       <BroadcastPopup notification={broadcastNotification} onClose={closeBroadcastPopup} />
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl shadow-black/30 md:p-8">
         <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(6,182,212,0.18),transparent_35%,rgba(99,102,241,0.16)_70%,transparent)]" />
-        <div className="absolute right-6 top-6 hidden h-28 w-28 rounded-2xl border border-cyan-300/20 bg-[linear-gradient(135deg,rgba(6,182,212,0.08),transparent)] md:block mch-float-panel" />
         <div className="relative z-10 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-cyan-300">Maverick Certification Hub</p>

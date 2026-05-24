@@ -183,7 +183,7 @@ function AdminOverview() {
       <ShellHeader
         label="Admin Workspace"
         title="Certification Operations Dashboard"
-        subtitle="A Figma-style control center for applications, drives, eligibility tests, vouchers, GitHub activity, documents, analytics, and admin audit events. Every number below is read from your backend APIs."
+        // subtitle="A Figma-style control center for applications, drives, eligibility tests, vouchers, Activity, documents, analytics, and admin audit events. Every number below is read from your backend APIs."
         actions={
           <>
             <Link to="/admin-brd/registrations" className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-indigo-950/30">Applications</Link>
@@ -216,7 +216,7 @@ function AdminOverview() {
           ["overview", "Overview"],
           ["applications", "Applications"],
           ["eligibility", "Eligibility"],
-          ["github", "GitHub Activity"],
+          ["github", "Activity"],
           ["insights", "AI & Reports"],
         ]}
       />
@@ -235,7 +235,7 @@ function AdminOverview() {
             </ResponsiveContainer>
           </ChartPanel>
 
-          <Panel title="Admin Modules" subtitle="Figma model navigation blocks">
+          <Panel title="Admin Modules">
             <div className="grid gap-3 sm:grid-cols-2">
               {adminLinks.map(([label, to]) => <ActionLink key={label} to={to}>{label}</ActionLink>)}
             </div>
@@ -373,7 +373,7 @@ function AdminOverview() {
       )}
 
       {tab === "github" && (
-        <Panel title="GitHub Activity" subtitle="Contribution calendar across users, enrollments, tasks, vouchers, and eligibility tests">
+        <Panel title="Activity" subtitle="Contribution calendar across users, enrollments, tasks, vouchers, and eligibility tests">
           <ActivityHeatmap heatmapData={heatmap.data?.heatmap || {}} />
         </Panel>
       )}
@@ -467,7 +467,7 @@ function UserOverview() {
         tabs={[
           ["overview", "Overview"],
           ["certifications", "Current Certifications"],
-          ["github", "GitHub Activity"],
+          ["github", "Activity"],
           ["insights", "AI Insights"],
         ]}
       />
@@ -560,7 +560,7 @@ function UserOverview() {
       )}
 
       {tab === "github" && (
-        <Panel title="GitHub Activity" subtitle="Your contribution calendar from enrollments, completions, tasks, and vouchers">
+        <Panel title="Activity" subtitle="Your contribution calendar from enrollments, completions, tasks, and vouchers">
           <ActivityHeatmap heatmapData={heatmap.data?.heatmap || {}} />
         </Panel>
       )}

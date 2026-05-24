@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title">
+  <title id="title">AI certificate verification illustration</title>
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#2b124c"/>
+      <stop offset="1" stop-color="#190019"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" rx="28" fill="url(#g)"/>
+  <rect x="92" y="48" width="300" height="264" rx="24" fill="#fbe4d8" opacity="0.86"/>
+  <rect x="126" y="92" width="166" height="14" rx="7" fill="#190019" opacity="0.8"/>
+  <rect x="126" y="132" width="220" height="12" rx="6" fill="#522b5b" opacity="0.55"/>
+  <rect x="126" y="164" width="184" height="12" rx="6" fill="#522b5b" opacity="0.42"/>
+  <circle cx="330" cy="244" r="42" fill="#854f6c"/>
+  <path d="m308 244 15 15 32-38" fill="none" stroke="#fbe4d8" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="452" cy="170" r="72" fill="none" stroke="#dfb6b2" stroke-width="14" opacity="0.9">
+    <animate attributeName="r" values="62;82;62" dur="3s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.9;0.35;0.9" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  <path d="m506 224 70 70" stroke="#dfb6b2" stroke-width="18" stroke-linecap="round"/>
+</svg>

@@ -173,6 +173,7 @@ export function ResultsAdminPage() {
 
       <Card title="Results">
         <Table
+          maxHeight="52vh"
           columns={[
             { key: "id", label: "ID" },
             { key: "registration_id", label: "Reg" },

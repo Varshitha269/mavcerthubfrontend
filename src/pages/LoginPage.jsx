@@ -4,9 +4,12 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Button } from "../components/Button.jsx";
 import { Card } from "../components/Card.jsx";
+import { AuthMotionOverlay } from "../components/AuthMotionOverlay.jsx";
 
 const inputClass =
   "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20";
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function LoginPage() {
   const { user, login, register } = useAuth();
@@ -21,7 +24,7 @@ export function LoginPage() {
   const [regPassword, setRegPassword] = useState("");
   const [regName, setRegName] = useState("");
 
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user && !loading) return <Navigate to="/dashboard" replace />;
 
   async function onLogin(e) {
     e.preventDefault();
@@ -31,7 +34,7 @@ export function LoginPage() {
     }
     setLoading(true);
     try {
-      await login(loginEmail.trim().toLowerCase(), loginPassword);
+      await Promise.all([login(loginEmail.trim().toLowerCase(), loginPassword), delay(1500)]);
       toast.success("Signed in.");
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Login failed");
@@ -48,7 +51,7 @@ export function LoginPage() {
     }
     setLoading(true);
     try {
-      await register({ email: regEmail.trim().toLowerCase(), password: regPassword, full_name: regName || null });
+      await Promise.all([register({ email: regEmail.trim().toLowerCase(), password: regPassword, full_name: regName || null }), delay(1200)]);
       toast.success("Account created! Please log in.");
       setRegEmail("");
       setRegPassword("");
@@ -67,10 +70,20 @@ export function LoginPage() {
         className="pointer-events-none fixed inset-0"
         style={{ background: "var(--gradient-login)" }}
       />
+      <div className="mch-login-live-bg pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+        <span className="mch-login-wave mch-login-wave-a" />
+        <span className="mch-login-wave mch-login-wave-b" />
+        <span className="mch-login-wave mch-login-wave-c" />
+        <span className="mch-login-pulse-grid" />
+        <span className="mch-login-scanline" />
+      </div>
       <div className="relative w-full max-w-lg">
         <div className="mb-8 text-center">
-          <h1 className="font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Maverick Hub</h1>
-          <p className="mt-2 text-slate-400">Glass dashboard · FastAPI backend</p>
+          <div className="mch-brand-mark mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-black shadow-xl shadow-cyan-950/20">
+            M
+          </div>
+          <h1 className="font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Maverick Certification Hub</h1>
+          {/* <p className="mt-2 text-slate-400">Certification Work</p> */}
         </div>
         <Card>
           <div className="mb-6 flex rounded-xl bg-white/5 p-1">
@@ -80,7 +93,7 @@ export function LoginPage() {
                 type="button"
                 onClick={() => setTab(t)}
                 className={`flex-1 rounded-lg py-2 text-sm font-semibold capitalize transition ${
-                  tab === t ? "bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white shadow-lg" : "text-slate-400 hover:text-white"
+                  tab === t ? "mch-primary-button text-white shadow-lg" : "text-slate-400 hover:text-white"
                 }`}
               >
                 {t}
@@ -143,6 +156,12 @@ export function LoginPage() {
           )}
         </Card>
       </div>
+      <AuthMotionOverlay
+        show={loading}
+        mode={tab === "register" ? "register" : "login"}
+        title={tab === "register" ? "Creating your account" : "Signing you in"}
+        subtitle={tab === "register" ? "Setting up your certification profile." : "Preparing your dashboard and secure session."}
+      />
     </div>
   );
 }

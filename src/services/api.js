@@ -149,6 +149,23 @@ export const aiApi = {
   extractCertificate: (payload) => api.post("/ai/certificate/extract", payload),
   generateTasks: (payload) => api.post("/ai/tasks/generate", payload),
   verifyCertificateUpload: (payload) => api.post("/ai/certificate/verify_upload", payload),
+  userRoadmap: () => api.get("/ai/user/roadmap"),
+  certificationMatches: () => api.get("/ai/user/certification-matches"),
+  learningPath: (payload) => api.post("/ai/user/learning-path", payload),
+  examReadiness: (params) => api.get("/ai/user/exam-readiness", { params }),
+  resumeRecommendations: (payload) => api.post("/ai/user/resume-recommendations", payload),
+  adminDriveSummary: (driveId) => api.get(`/ai/admin/drive-insights/${driveId}`),
+  adminCandidateRanking: (params) => api.get("/ai/admin/candidate-ranking", { params }),
+  adminVoucherRecommendations: (params) => api.get("/ai/admin/voucher-recommendations", { params }),
+  adminVoucherBudgetOptimizer: (params) => api.get("/ai/admin/voucher-budget-optimizer", { params }),
+  adminReconductRecommendations: () => api.get("/ai/admin/reconduct-recommendations"),
+  adminPassRatePredictor: (params) => api.get("/ai/admin/pass-rate-predictor", { params }),
+  adminFraudDuplicateDetection: () => api.get("/ai/admin/fraud-duplicate-detection"),
+  adminNaturalLanguageQuery: (payload) => api.post("/ai/admin/nl-query", payload),
+  adminCertificateConfidence: (payload) => api.post("/ai/admin/certificate-confidence", payload),
+  reminderMessage: (payload) => api.post("/ai/reminders/message", payload),
+  adminDropoutRisk: () => api.get("/ai/admin/dropout-risk"),
+  adminDriveReport: (driveId) => api.get(`/ai/admin/drive-report/${driveId}`),
 };
 
 export const aiSuggestionsApi = {

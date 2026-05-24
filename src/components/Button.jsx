@@ -2,9 +2,9 @@ import React from "react";
 
 const variants = {
   primary:
-    "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:brightness-110 active:scale-[0.98]",
+    "mch-primary-button text-white shadow-lg shadow-cyan-500/20 hover:shadow-indigo-500/30 hover:brightness-110 active:scale-[0.98]",
   ghost:
-    "border border-white/10 bg-white/5 text-slate-100 hover:bg-white/10 hover:border-white/20 active:scale-[0.98]",
+    "border border-white/10 bg-white/5 text-slate-100 hover:border-cyan-300/40 hover:bg-cyan-300/10 active:scale-[0.98]",
   danger:
     "border border-rose-500/40 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 active:scale-[0.98]",
 };
