@@ -19,12 +19,13 @@ function ScorePill({ value }) {
 export function ProfilePage() {
   const toast = useToast();
   const { theme, setTheme: applyTheme } = useTheme();
+  const [goal, setGoal] = useState("Cloud Engineer");
   const { data, loading, error, reload } = useAsyncData(() => profileApi.get().then((r) => r.data), []);
   const { data: badgesData, loading: badgesLoading } = useAsyncData(() => profileApi.badges().then((r) => r.data), []);
   const { data: certsData, loading: certsLoading } = useAsyncData(() => uploadsApi.certificates().then((r) => r.data), []);
   const { data: driveHistory, loading: driveHistoryLoading } = useAsyncData(() => profileApi.driveHistory().then((r) => r.data), []);
   const { data: roadmapData, loading: roadmapLoading } = useAsyncData(() => aiApi.userRoadmap().then((r) => r.data), []);
-  const { data: matchesData, loading: matchesLoading } = useAsyncData(() => aiApi.certificationMatches().then((r) => r.data), []);
+  const { data: matchesData, loading: matchesLoading } = useAsyncData(() => aiApi.certificationMatches(goal).then((r) => r.data), [goal]);
 
   
   const [fullName, setFullName] = useState("");
@@ -32,7 +33,6 @@ export function ProfilePage() {
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [selectedTheme, setSelectedTheme] = useState(theme);
-  const [goal, setGoal] = useState("Cloud Engineer");
   const [learningPath, setLearningPath] = useState(null);
   const [busy, setBusy] = useState(false);
 

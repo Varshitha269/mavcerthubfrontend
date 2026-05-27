@@ -9,7 +9,9 @@ import { Modal } from "../components/Modal.jsx";
 import { Table } from "../components/Table.jsx";
 
 export function EligibilityApprovalsAdminPage() {
-  const { isAdmin } = useAuth();
+  const { user, isPrivileged } = useAuth();
+  const canEvaluate = user?.role === "coordinator" || user?.role === "admin";
+  const canDecide = user?.role === "approver" || user?.role === "admin";
   const toast = useToast();
 
   const [evalRegId, setEvalRegId] = useState("");
@@ -17,7 +19,7 @@ export function EligibilityApprovalsAdminPage() {
   const [approvalsFilter, setApprovalsFilter] = useState({ status: "pending", drive_id: "" });
   const registrations = useAsyncData(
     () =>
-      isAdmin
+      isPrivileged
         ? registrationsApi
             .adminList({
               drive_id: regFilters.drive_id ? Number(regFilters.drive_id) : undefined,
@@ -25,12 +27,12 @@ export function EligibilityApprovalsAdminPage() {
             })
             .then((r) => r.data)
         : Promise.resolve([]),
-    [isAdmin, regFilters.drive_id, regFilters.q]
+    [isPrivileged, regFilters.drive_id, regFilters.q]
   );
 
   const approvals = useAsyncData(
     () =>
-      isAdmin
+      isPrivileged
         ? eligibilityAdminApi
             .approvalsList({
               status: approvalsFilter.status || undefined,
@@ -38,13 +40,14 @@ export function EligibilityApprovalsAdminPage() {
             })
             .then((r) => r.data)
         : Promise.resolve([]),
-    [isAdmin, approvalsFilter.status, approvalsFilter.drive_id]
+    [isPrivileged, approvalsFilter.status, approvalsFilter.drive_id]
   );
 
   const [decide, setDecide] = useState(null);
   const [approvalOpen, setApprovalOpen] = useState(null);
   const [decision, setDecision] = useState({ status: "approved", decision_notes: "" });
   const [approvalForm, setApprovalForm] = useState({ level: 1, approver_email: "" });
+  const [evalResult, setEvalResult] = useState(null);
   const [candidateRanking, setCandidateRanking] = useState([]);
   const [rankingBusy, setRankingBusy] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -66,7 +69,10 @@ export function EligibilityApprovalsAdminPage() {
     if (!evalRegId) return;
     setBusy(true);
     try {
-      await eligibilityAdminApi.evaluate({ registration_id: Number(evalRegId) });
+      const { data } = await eligibilityAdminApi.evaluate({ registration_id: Number(evalRegId) });
+      setEvalResult(data);
+      setRegFilters((prev) => ({ ...prev, drive_id: String(data.drive_id || prev.drive_id || "") }));
+      setApprovalsFilter((prev) => ({ ...prev, drive_id: String(data.drive_id || prev.drive_id || "") }));
       toast.success("Eligibility evaluated. If approval is needed, a pending approval is created automatically.");
       approvals.reload();
       registrations.reload();
@@ -131,8 +137,8 @@ export function EligibilityApprovalsAdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl font-bold text-white">Eligibility & approvals</h2>
-        <p className="text-slate-400">Admin workflow: evaluate rules → pending approvals → decide</p>
+        <h2 className="font-display text-2xl font-bold text-white">{canDecide ? "Approver Decision Workspace" : "Eligibility Queue"}</h2>
+        <p className="text-slate-400">{canDecide ? "Review pending policy exceptions, uploaded evidence, and approve or reject requests." : "Evaluate registration eligibility and create approval requests for approvers."}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -149,7 +155,7 @@ export function EligibilityApprovalsAdminPage() {
         ))}
       </div>
 
-      <Card title="Evaluate eligibility" >
+      {canEvaluate && <Card title="Evaluate eligibility" >
         <p className="mb-4 text-sm leading-6 text-slate-400">
           Use a Registration ID from the table below. Evaluation reads the registration's drive, applies the drive eligibility rules, updates registration status, and creates a pending approval when manual review is required.
         </p>
@@ -162,7 +168,27 @@ export function EligibilityApprovalsAdminPage() {
             Evaluate
           </Button>
         </div>
-      </Card>
+        {evalResult && (
+          <div className="mt-4 grid gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm sm:grid-cols-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Registration</div>
+              <div className="mt-1 font-semibold text-white">#{evalResult.registration_id}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Drive</div>
+              <div className="mt-1 font-semibold text-white">#{evalResult.drive_id}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Decision</div>
+              <div className="mt-1 font-semibold text-white">{evalResult.decision}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Reason</div>
+              <div className="mt-1 text-slate-300">{evalResult.reason || "Rules passed"}</div>
+            </div>
+          </div>
+        )}
+      </Card>}
 
       <Card
         title="AI Candidate Ranking for Drive Approvals"
@@ -209,7 +235,7 @@ export function EligibilityApprovalsAdminPage() {
             {
               key: "eval",
               label: "",
-              render: (r) => (
+              render: (r) => canEvaluate ? (
                 <div className="flex gap-2">
                   <Button className="!py-1 !text-xs" variant="ghost" onClick={() => setEvalRegId(String(r.id))}>Use ID</Button>
                   <Button
@@ -223,7 +249,7 @@ export function EligibilityApprovalsAdminPage() {
                     Request Approval
                   </Button>
                 </div>
-              ),
+              ) : <span className="text-xs text-slate-500">View only</span>,
             },
           ]}
           rows={registrations.data || []}
@@ -264,7 +290,7 @@ export function EligibilityApprovalsAdminPage() {
               key: "a",
               label: "",
               render: (r) =>
-                r.status === "pending" ? (
+                r.status === "pending" && canDecide ? (
                   <Button
                     variant="ghost"
                     className="!py-1 !text-xs"
@@ -343,4 +369,3 @@ export function EligibilityApprovalsAdminPage() {
     </div>
   );
 }
-

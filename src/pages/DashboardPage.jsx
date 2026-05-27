@@ -159,6 +159,7 @@ function ActionLink({ to, children }) {
 
 function AdminOverview() {
   const overview = useAsyncData(() => adminApi.brdOverview().then((r) => r.data), []);
+  const roleDash = useAsyncData(() => adminApi.roleDashboard().then((r) => r.data), []);
   const heatmap = useAsyncData(() => adminApi.activityHeatmap().then((r) => r.data), []);
   const [tab, setTab] = useState("overview");
 
@@ -166,6 +167,8 @@ function AdminOverview() {
   const data = overview.data || {};
   const metrics = data.metrics || {};
   const charts = data.charts || {};
+  const supportMetrics = roleDash.data?.support_metrics || {};
+  const supportPlaybook = roleDash.data?.support_playbook || {};
 
   const adminLinks = [
     ["Applications", "/admin-brd/registrations"],
@@ -207,6 +210,31 @@ function AdminOverview() {
         <SummaryCard label="Completed" value={metrics.completed_drives ?? 0} hint={`${metrics.drive_completion_rate ?? 0}% completion rate`} accent="cyan" />
         <SummaryCard label="Drive Regs" value={metrics.drive_registrations ?? 0} hint="Drive applications" accent="violet" />
         <SummaryCard label="Pass Rate" value={`${metrics.drive_pass_rate ?? 0}%`} hint={`${metrics.drive_assessments ?? 0} assessed`} accent="amber" />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <Panel title={supportPlaybook.title || "Support Governance"} subtitle={supportPlaybook.purpose || "Admin view of support SLA, escalations, and issue patterns"}>
+          <div className="grid gap-3 sm:grid-cols-4">
+            {[
+              ["Open", supportMetrics.open ?? 0],
+              ["In Review", supportMetrics.in_review ?? 0],
+              ["Resolved", supportMetrics.resolved ?? 0],
+              ["Reschedule", supportMetrics.reschedule_requests ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-center transition hover:-translate-y-1 hover:border-cyan-300/30">
+                <div className="font-display text-2xl font-bold text-white">{value}</div>
+                <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Admin AI Operations" subtitle="AI features available for governance and communication">
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(supportPlaybook.ai_features || ["Summarize support themes", "Detect repeated issue patterns", "Draft broadcast or SLA response"]).map((feature) => (
+              <div key={feature} className="rounded-xl border border-fuchsia-300/15 bg-fuchsia-400/10 p-3 text-sm font-semibold text-fuchsia-50 transition hover:translate-x-1">{feature}</div>
+            ))}
+          </div>
+        </Panel>
       </div>
 
       <SegmentedTabs
@@ -585,7 +613,179 @@ function UserOverview() {
   );
 }
 
+function RoleOverview() {
+  const roleDash = useAsyncData(() => adminApi.roleDashboard().then((r) => r.data), []);
+  if (roleDash.loading && !roleDash.data) return <CardSkeleton />;
+  const data = roleDash.data || {};
+  const metrics = data.metrics || {};
+  const datasets = data.datasets || {};
+  const supportMetrics = data.support_metrics || {};
+  const supportPlaybook = data.support_playbook || {};
+  const roleSkin = {
+    coordinator: {
+      label: "Coordinator Workspace",
+      accent: "from-cyan-500/30 via-indigo-500/10 to-transparent",
+      subtitle: "Drive execution, application movement, reschedules, results, and voucher readiness.",
+      metrics: [
+        ["Open Drives", metrics.open_drives ?? 0, "Create and conduct drives"],
+        ["Support", metrics.pending_support ?? 0, "Open help/reschedule requests"],
+        ["Pending Results", metrics.pending_results ?? 0, "Assessments waiting closure"],
+        ["Voucher Aging", metrics.voucher_aging ?? 0, "Issued vouchers to monitor"],
+      ],
+      links: [["Create / Manage Drives", "/admin-brd/drives"], ["Applications Queue", "/admin-brd/registrations"], ["Support Queue", "/admin-brd/support"], ["Import Results", "/admin-brd/results"]],
+    },
+    approver: {
+      label: "Approver Workspace",
+      accent: "from-amber-500/30 via-rose-500/10 to-transparent",
+      subtitle: "Policy decisions only: eligibility exceptions, evidence, approvals, and audit context.",
+      metrics: [
+        ["Pending", metrics.pending_approvals ?? 0, "Approval decisions"],
+        ["Documents", datasets.documents?.length ?? 0, "Recent evidence files"],
+        ["Support", metrics.pending_support ?? 0, "Exception context"],
+        ["Audit", metrics.audit_events ?? 0, "Decision trace"],
+      ],
+      links: [["Decide Approvals", "/admin-brd/eligibility"], ["Review Documents", "/uploads"], ["Exception Queue", "/admin-brd/support"]],
+    },
+    read_only: {
+      label: "Read-only Leadership View",
+      accent: "from-emerald-500/30 via-sky-500/10 to-transparent",
+      subtitle: "View-only reporting across drives, applications, results, vouchers, documents, and users.",
+      metrics: [
+        ["Open Drives", metrics.open_drives ?? 0, "Current portfolio"],
+        ["Applications", datasets.registrations?.length ?? 0, "Recent registrations"],
+        ["Vouchers", datasets.vouchers?.length ?? 0, "Recent voucher rows"],
+        ["Email Failures", metrics.email_failed ?? 0, "SLA visibility"],
+      ],
+      links: [["View Applications", "/admin-brd/registrations"], ["View Drives", "/admin-brd/drives"], ["View Results", "/admin-brd/results"], ["View Vouchers", "/vouchers"]],
+    },
+  }[data.role] || {};
+
+  const smallRows = (rows, fields) => (
+    <div className="space-y-3">
+      {(rows || []).slice(0, 5).map((row, index) => (
+        <div key={`${fields[0]}-${row.id || index}`} className="group rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-lg shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-white/[0.07]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-white">{row[fields[0]] || `#${row.id}`}</div>
+              <div className="mt-1 truncate text-sm text-slate-400">{row[fields[1]] || ""}</div>
+            </div>
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold text-cyan-100 ring-1 ring-white/10">{row[fields[2]] || row.status || row.role || "view"}</span>
+          </div>
+        </div>
+      ))}
+      {(!rows || rows.length === 0) && <EmptyText>No rows yet. Use the linked workspace to add or import data.</EmptyText>}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 text-slate-100">
+      <section className={`relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 p-6 shadow-2xl shadow-black/25 before:absolute before:inset-0 before:bg-gradient-to-br ${roleSkin.accent} before:opacity-100`}>
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">{roleSkin.label}</p>
+            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight md:text-4xl">{data.title || "Role Dashboard"}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{roleSkin.subtitle}</p>
+          </div>
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.06] font-display text-2xl font-black uppercase text-white shadow-xl shadow-black/20 transition hover:rotate-3 hover:scale-105">
+            {(data.role || "R").slice(0, 2)}
+          </div>
+        </div>
+      </section>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {(roleSkin.metrics || []).map(([label, value, hint], index) => (
+          <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-xl shadow-black/20 transition duration-300 hover:-translate-y-1 hover:border-cyan-300/30">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+            <div className="mt-3 font-display text-3xl font-bold text-white">{value}</div>
+            <p className="mt-2 text-sm text-slate-400">{hint}</p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full bg-cyan-300/80 transition-all duration-700" style={{ width: `${Math.min(100, 28 + index * 18)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <Panel title="Role Actions" subtitle="Only the work owned by this role is surfaced here">
+          <div className="space-y-3">
+            {(data.modules || []).map((module) => (
+              <div key={module} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm font-semibold text-slate-200 transition hover:translate-x-1 hover:bg-white/[0.06]">{module}</div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Quick Access" subtitle="The buttons match the responsibilities of this role">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(roleSkin.links || []).map(([label, to]) => <ActionLink key={label} to={to}>{label}</ActionLink>)}
+          </div>
+        </Panel>
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <Panel title={supportPlaybook.title || "Support Desk"} subtitle={supportPlaybook.purpose || "BRD support, status, and reschedule workflow"}>
+          <div className="grid gap-3 sm:grid-cols-4">
+            {[
+              ["Open", supportMetrics.open ?? 0],
+              ["In Review", supportMetrics.in_review ?? 0],
+              ["Help", supportMetrics.help_requests ?? 0],
+              ["Reschedule", supportMetrics.reschedule_requests ?? 0],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-center transition hover:-translate-y-1 hover:border-cyan-300/30">
+                <div className="font-display text-2xl font-bold text-white">{value}</div>
+                <div className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {(supportPlaybook.primary_actions || []).map((item) => (
+              <div key={item} className="rounded-xl border border-cyan-300/15 bg-cyan-300/10 p-3 text-sm font-semibold text-cyan-100">{item}</div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="AI Support Assist" subtitle="Role-specific AI helpers for this support workflow">
+          <div className="space-y-3">
+            {(supportPlaybook.ai_features || []).map((feature) => (
+              <div key={feature} className="rounded-2xl border border-fuchsia-300/15 bg-fuchsia-400/10 p-4 text-sm text-fuchsia-50 shadow-lg shadow-fuchsia-950/10 transition hover:translate-x-1 hover:bg-fuchsia-400/15">
+                <div className="font-semibold">{feature}</div>
+                <div className="mt-1 text-xs text-fuchsia-100/70">Available from the Support queue and AI reminder/message tools.</div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+      {data.role === "coordinator" && (
+        <div className="grid gap-6 xl:grid-cols-3">
+          <Panel title="Drive Queue" subtitle="Coordinator-owned drive work">{smallRows(datasets.drives, ["name", "owner_email", "status"])}</Panel>
+          <Panel title="Applications" subtitle="Recent registrations to route">{smallRows(datasets.registrations, ["candidate_name", "candidate_email", "status"])}</Panel>
+          <Panel title="Support / Reschedule" subtitle="User requests needing action">{smallRows(datasets.support, ["email", "message", "status"])}</Panel>
+        </div>
+      )}
+      {data.role === "approver" && (
+        <div className="grid gap-6 xl:grid-cols-3">
+          <Panel title="Approval Inbox" subtitle="Decision queue">{smallRows(datasets.approvals, ["candidate_email", "approver_email", "status"])}</Panel>
+          <Panel title="Evidence Files" subtitle="Documents for review">{smallRows(datasets.documents, ["filename", "purpose", "review_status"])}</Panel>
+          <Panel title="Exceptions" subtitle="Support context">{smallRows(datasets.support, ["email", "message", "type"])}</Panel>
+        </div>
+      )}
+      {data.role === "read_only" && (
+        <div className="grid gap-6 xl:grid-cols-3">
+          <Panel title="Drive Snapshot" subtitle="View-only portfolio">{smallRows(datasets.drives, ["name", "owner_email", "status"])}</Panel>
+          <Panel title="Result Snapshot" subtitle="Latest outcomes">{smallRows(datasets.results, ["candidate_email", "assessed_on", "outcome"])}</Panel>
+          <Panel title="Voucher Snapshot" subtitle="Issued and delivered state">{smallRows(datasets.vouchers, ["user", "masked_code", "status"])}</Panel>
+        </div>
+      )}
+      {(data.alerts || []).length > 0 && (
+        <Panel title="SLA and Failure Alerts">
+          <div className="space-y-3">
+            {data.alerts.map((alert, index) => (
+              <div key={index} className="rounded-2xl border border-amber-300/20 bg-amber-500/10 p-3 text-sm text-amber-100">{alert.text}</div>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
 export function DashboardPage() {
-  const { isAdmin } = useAuth();
-  return isAdmin ? <AdminOverview /> : <UserOverview />;
+  const { isAdmin, isPrivileged } = useAuth();
+  if (isAdmin) return <AdminOverview />;
+  if (isPrivileged) return <RoleOverview />;
+  return <UserOverview />;
 }

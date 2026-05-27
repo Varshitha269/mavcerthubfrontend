@@ -20,6 +20,9 @@ import { DrivesBrdAdminPage } from "./pages/DrivesBrdAdminPage.jsx";
 import { RegistrationsAdminPage } from "./pages/RegistrationsAdminPage.jsx";
 import { EligibilityApprovalsAdminPage } from "./pages/EligibilityApprovalsAdminPage.jsx";
 import { ResultsAdminPage } from "./pages/ResultsAdminPage.jsx";
+import { SupportPage } from "./pages/SupportPage.jsx";
+import { SupportAdminPage } from "./pages/SupportAdminPage.jsx";
+import { VoucherClaimPage } from "./pages/VoucherClaimPage.jsx";
 import { CardSkeleton } from "./components/Skeleton.jsx";
 
 function Protected({ children }) {
@@ -38,8 +41,8 @@ function Protected({ children }) {
 }
 
 function RoleHome() {
-  const { isAdmin } = useAuth();
-  return <Navigate to={isAdmin ? "/dashboard" : "/home"} replace />;
+  const { isPrivileged } = useAuth();
+  return <Navigate to={isPrivileged ? "/dashboard" : "/home"} replace />;
 }
 
 export default function App() {
@@ -68,11 +71,14 @@ export default function App() {
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="vouchers" element={<VouchersPage />} />
+        <Route path="vouchers/claim/:token" element={<VoucherClaimPage />} />
+        <Route path="support" element={<SupportPage />} />
         <Route path="admin" element={<AdminPage />} />
         <Route path="admin-brd/drives" element={<DrivesBrdAdminPage />} />
         <Route path="admin-brd/registrations" element={<RegistrationsAdminPage />} />
         <Route path="admin-brd/eligibility" element={<EligibilityApprovalsAdminPage />} />
         <Route path="admin-brd/results" element={<ResultsAdminPage />} />
+        <Route path="admin-brd/support" element={<SupportAdminPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>

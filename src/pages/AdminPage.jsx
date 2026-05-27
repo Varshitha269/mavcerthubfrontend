@@ -226,14 +226,14 @@ export function AdminPage() {
   const [adminQueryResult, setAdminQueryResult] = useState(null);
   const [fraudResult, setFraudResult] = useState(null);
   const [aiBusy, setAiBusy] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState("");
 
   if (!isAdmin) return <Navigate to="/home" replace />;
   if ((users.loading && !users.data) || (brd.loading && !brd.data)) return <CardSkeleton />;
 
   async function createUser(e) {
     e.preventDefault();
-    setBusy(true);
+    setBusy("create-user");
     try {
       await adminApi.createUser(create);
       toast.success("User created.");
@@ -243,13 +243,13 @@ export function AdminPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
   async function sendBroadcast(e) {
     e.preventDefault();
-    setBusy(true);
+    setBusy("broadcast");
     try {
       const { data } = await notificationsApi.broadcast({
         title: broadcast.title,
@@ -268,19 +268,19 @@ export function AdminPage() {
       toast.success(
         data.scheduled
           ? `Scheduled for ${data.sent} recipients.`
-          : `Broadcast sent to ${data.sent} recipients. Emails sent: ${data.emails_sent ?? 0}.`
+          : `Broadcast sent to ${data.sent} recipients. Emails sending now: ${data.emails_sending ?? data.emails_sent ?? 0}.`
       );
       setBroadcastOpen(false);
       setBroadcast(emptyBroadcast);
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
   async function exportUsers() {
-    setBusy(true);
+    setBusy("export-users");
     try {
       const { data } = await exportsApi.usersCsv();
       const url = URL.createObjectURL(data);
@@ -293,13 +293,13 @@ export function AdminPage() {
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Users export failed");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
   async function runReminders(e) {
     e.preventDefault();
-    setBusy(true);
+    setBusy("reminders");
     try {
       const { data } = await adminApi.runReminders({
         ...reminder,
@@ -307,14 +307,14 @@ export function AdminPage() {
         broadcast_expiry_days: Number(reminder.broadcast_expiry_days) || 7,
       });
       toast.success(
-        `Reminders created. Certificates checked: ${data.checked}, emails sent: ${data.sent}, broadcast reminders: ${data.broadcast_expiry_reminders}.`
+        `Reminders created. Certificates checked: ${data.checked}, emails sending now: ${data.sending ?? data.sent}, broadcast reminders: ${data.broadcast_expiry_reminders}.`
       );
       setReminderOpen(false);
       brd.reload();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to run reminders");
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
@@ -414,7 +414,7 @@ export function AdminPage() {
           <p className="text-slate-400">Review applications, approve documents, assign vouchers, update results, and monitor analytics.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={exportUsers} loading={busy}>Export Users</Button>
+          <Button variant="ghost" onClick={exportUsers} loading={busy === "export-users"}>Export Users</Button>
           <Button variant="ghost" onClick={() => setReminderOpen(true)}>Run Reminders</Button>
           <Button variant="ghost" onClick={() => setBroadcastOpen(true)}>Broadcast</Button>
           <Button onClick={() => setCreateOpen(true)}>New User</Button>
@@ -659,7 +659,7 @@ export function AdminPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setReminderOpen(false)}>Cancel</Button>
-            <Button type="submit" form="reminder-form" loading={busy}>Run Now</Button>
+            <Button type="submit" form="reminder-form" loading={busy === "reminders"}>Run Now</Button>
           </>
         }
       >
@@ -719,7 +719,7 @@ export function AdminPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button type="submit" form="adm-user" loading={busy}>Create</Button>
+            <Button type="submit" form="adm-user" loading={busy === "create-user"}>Create</Button>
           </>
         }
       >
@@ -755,7 +755,7 @@ export function AdminPage() {
           <>
             <Button variant="ghost" onClick={() => setBroadcastOpen(false)}>Cancel</Button>
             <Button variant="ghost" onClick={() => setPreviewOpen(true)}>Preview</Button>
-            <Button type="submit" form="bc-form" loading={busy}>Send</Button>
+            <Button type="submit" form="bc-form" loading={busy === "broadcast"}>Send</Button>
           </>
         }
       >

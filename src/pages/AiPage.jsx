@@ -546,9 +546,14 @@ export function AiPage() {
               >
                 Run Scan
               </Button>
-              {fraudResult && <p className="mb-3 text-sm text-slate-400">{fraudResult.summary}</p>}
+              {fraudResult && (
+                <div className={`mb-3 rounded-xl border p-3 text-sm ${fraudResult.has_live_findings ? "border-amber-400/20 bg-amber-500/10 text-amber-100" : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"}`}>
+                  {fraudResult.summary}
+                  {!fraudResult.has_live_findings && <div className="mt-1 text-xs opacity-80">The table below is showing example scenarios only, not live fraud.</div>}
+                </div>
+              )}
               <Table
-                rows={fraudResult?.flags || []}
+                rows={fraudResult?.has_live_findings ? (fraudResult?.flags || []) : (fraudResult?.examples || [])}
                 maxHeight={320}
                 columns={[
                   { key: "type", label: "Type" },
@@ -557,8 +562,13 @@ export function AiPage() {
                   { key: "drive_id", label: "Drive" },
                   { key: "reason", label: "Reason" },
                 ]}
-                emptyMessage="Run fraud scan to view signals."
+                emptyMessage="Run fraud scan to view live signals or examples."
               />
+              {fraudResult?.review_signals?.length > 0 && (
+                <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+                  {fraudResult.review_signals.length} certificate upload(s) need manual review. These are not counted as fraud until rejected evidence remains mismatched.
+                </div>
+              )}
             </Card>
           </div>
 

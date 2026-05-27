@@ -45,6 +45,9 @@ const iconMap = {
   admin: (
     <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20a6 6 0 0 1 12 0" /><path d="M14 18a5 5 0 0 1 7 2" /></>
   ),
+  support: (
+    <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" /><path d="M9 9h6" /><path d="M9 13h4" /></>
+  ),
 };
 
 function Icon({ name, active }) {
@@ -88,7 +91,7 @@ function Section({ title, items, onNavigate }) {
 }
 
 export function Sidebar({ onNavigate }) {
-  const { user, isAdmin, logout, authTransition } = useAuth();
+  const { user, isPrivileged, logout, authTransition } = useAuth();
 
   const userJourney = [
     { to: "/home", label: "Home", icon: "home" },
@@ -96,6 +99,7 @@ export function Sidebar({ onNavigate }) {
     { to: "/certifications", label: "Certifications", icon: "certs" },
     { to: "/enrollments", label: "My Enrollments", icon: "enrollments" },
     { to: "/vouchers", label: "My Vouchers", icon: "vouchers" },
+    { to: "/support", label: "Support", icon: "support" },
     { to: "/uploads", label: "Uploads", icon: "uploads" },
   ];
 
@@ -105,22 +109,63 @@ export function Sidebar({ onNavigate }) {
     { to: "/settings", label: "Settings", icon: "settings" },
   ];
 
-  const adminOps = [
-    { to: "/dashboard", label: "Overview", icon: "overview" },
-    { to: "/admin-brd/registrations", label: "Applications", icon: "apps" },
-    { to: "/admin-brd/drives", label: "Drives", icon: "drives" },
-    { to: "/admin-brd/eligibility", label: "Eligibility", icon: "eligibility" },
-    { to: "/admin-brd/results", label: "Results", icon: "results" },
-    { to: "/vouchers", label: "Vouchers", icon: "vouchers" },
-    { to: "/uploads", label: "Documents", icon: "uploads" },
-  ];
+  const roleOps = {
+    admin: [
+      { to: "/dashboard", label: "Overview", icon: "overview" },
+      { to: "/admin-brd/registrations", label: "Applications", icon: "apps" },
+      { to: "/admin-brd/drives", label: "Drives", icon: "drives" },
+      { to: "/admin-brd/eligibility", label: "Eligibility", icon: "eligibility" },
+      { to: "/admin-brd/results", label: "Results", icon: "results" },
+      { to: "/vouchers", label: "Vouchers", icon: "vouchers" },
+      { to: "/uploads", label: "Documents", icon: "uploads" },
+      { to: "/admin-brd/support", label: "Support", icon: "support" },
+    ],
+    coordinator: [
+      { to: "/dashboard", label: "Overview", icon: "overview" },
+      { to: "/admin-brd/drives", label: "Drives", icon: "drives" },
+      { to: "/admin-brd/registrations", label: "Applications", icon: "apps" },
+      { to: "/admin-brd/results", label: "Results", icon: "results" },
+      { to: "/admin-brd/support", label: "Support", icon: "support" },
+      { to: "/vouchers", label: "Vouchers", icon: "vouchers" },
+    ],
+    approver: [
+      { to: "/dashboard", label: "Overview", icon: "overview" },
+      { to: "/admin-brd/eligibility", label: "Approvals", icon: "eligibility" },
+      { to: "/uploads", label: "Documents", icon: "uploads" },
+      { to: "/admin-brd/support", label: "Exceptions", icon: "support" },
+    ],
+    read_only: [
+      { to: "/dashboard", label: "Leadership View", icon: "overview" },
+      { to: "/admin-brd/registrations", label: "Applications", icon: "apps" },
+      { to: "/admin-brd/drives", label: "Drives", icon: "drives" },
+      { to: "/admin-brd/results", label: "Results", icon: "results" },
+      { to: "/vouchers", label: "Vouchers", icon: "vouchers" },
+      { to: "/uploads", label: "Documents", icon: "uploads" },
+    ],
+  };
 
-  const adminSystem = [
-    { to: "/certifications", label: "Certificates", icon: "certs" },
-    { to: "/admin", label: "Users", icon: "admin" },
-    { to: "/notifications", label: "Notifications", icon: "notifications" },
-    { to: "/settings", label: "Settings", icon: "settings" },
-  ];
+  const roleSystem = {
+    admin: [
+      { to: "/certifications", label: "Certificates", icon: "certs" },
+      { to: "/admin", label: "Users", icon: "admin" },
+      { to: "/notifications", label: "Notifications", icon: "notifications" },
+      { to: "/settings", label: "Settings", icon: "settings" },
+    ],
+    coordinator: [
+      { to: "/notifications", label: "Notifications", icon: "notifications" },
+      { to: "/settings", label: "Settings", icon: "settings" },
+    ],
+    approver: [
+      { to: "/notifications", label: "Notifications", icon: "notifications" },
+      { to: "/settings", label: "Settings", icon: "settings" },
+    ],
+    read_only: [
+      { to: "/notifications", label: "Notifications", icon: "notifications" },
+      { to: "/settings", label: "Settings", icon: "settings" },
+    ],
+  };
+  const activeOps = roleOps[user?.role] || roleOps.read_only;
+  const activeSystem = roleSystem[user?.role] || roleSystem.read_only;
 
   return (
     <aside className="mch-sidebar relative flex h-full w-72 shrink-0 flex-col overflow-hidden text-white shadow-2xl shadow-slate-950/25">
@@ -130,16 +175,16 @@ export function Sidebar({ onNavigate }) {
           <div className="mch-brand-mark flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-black shadow-lg shadow-cyan-950/30">M</div>
           <div>
             <div className="text-lg font-bold tracking-tight">Maverick</div>
-            <p className="text-xs text-slate-400">{isAdmin ? "Admin Dashboard" : "Certification Portal"}</p>
+          <p className="text-xs text-slate-400">{isPrivileged ? `${user?.role || "admin"} Dashboard` : "Certification Portal"}</p>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3">
-        {isAdmin ? (
+        {isPrivileged ? (
           <>
-            <Section title="Operations" items={adminOps} onNavigate={onNavigate} />
-            <Section title="System" items={adminSystem} onNavigate={onNavigate} />
+            <Section title={user?.role === "read_only" ? "View Access" : "Workspace"} items={activeOps} onNavigate={onNavigate} />
+            <Section title="Account" items={activeSystem} onNavigate={onNavigate} />
           </>
         ) : (
           <>

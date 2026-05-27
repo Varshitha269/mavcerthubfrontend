@@ -10,13 +10,14 @@ import { Modal } from "../components/Modal.jsx";
 import { Table } from "../components/Table.jsx";
 
 export function RegistrationsAdminPage() {
-  const { isAdmin } = useAuth();
+  const { user, isPrivileged } = useAuth();
+  const canCoordinate = user?.role === "coordinator" || user?.role === "admin";
   const toast = useToast();
 
   const [filters, setFilters] = useState({ drive_id: "", status: "", q: "" });
   const rows = useAsyncData(
     () =>
-      isAdmin
+      isPrivileged
         ? registrationsApi
             .adminList({
               drive_id: filters.drive_id ? Number(filters.drive_id) : undefined,
@@ -25,7 +26,7 @@ export function RegistrationsAdminPage() {
             })
             .then((r) => r.data)
         : Promise.resolve([]),
-    [isAdmin, filters.drive_id, filters.status, filters.q]
+    [isPrivileged, filters.drive_id, filters.status, filters.q]
   );
 
   const [edit, setEdit] = useState(null);
@@ -63,8 +64,8 @@ export function RegistrationsAdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl font-bold text-white">Registrations (Admin)</h2>
-        <p className="text-slate-400">This is the Applications tab: every row is a user application for a certification drive before eligibility, approval, voucher, and result tracking.</p>
+          <h2 className="font-display text-2xl font-bold text-white">{canCoordinate ? "Coordinator Applications Queue" : "Applications View"}</h2>
+          <p className="text-slate-400">{canCoordinate ? "Review, update, and route user applications for eligibility, voucher, and result tracking." : "Read-only application visibility across certification drives."}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -153,7 +154,7 @@ export function RegistrationsAdminPage() {
             { key: "candidate_name", label: "Name" },
             { key: "candidate_email", label: "Email" },
             { key: "status", label: "Status" },
-            {
+            ...(canCoordinate ? [{
               key: "a",
               label: "",
               render: (r) => (
@@ -168,7 +169,7 @@ export function RegistrationsAdminPage() {
                   Edit
                 </Button>
               ),
-            },
+            }] : []),
           ]}
           rows={rows.data || []}
           emptyMessage="No applications yet. Once a user registers for a drive, their application appears here."

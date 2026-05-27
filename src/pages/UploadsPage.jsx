@@ -34,8 +34,9 @@ function statusKey(upload) {
 
 export function UploadsPage() {
   const toast = useToast();
-  const { isAdmin } = useAuth();
-  const uploads = useAsyncData(() => (isAdmin ? uploadsApi.adminList() : uploadsApi.my()).then((r) => r.data), [isAdmin]);
+  const { user, isPrivileged } = useAuth();
+  const canReview = user?.role === "approver" || user?.role === "admin";
+  const uploads = useAsyncData(() => (isPrivileged ? uploadsApi.adminList() : uploadsApi.my()).then((r) => r.data), [isPrivileged]);
   const enrollments = useAsyncData(() => enrollmentsApi.my().then((r) => r.data), []);
   const [file, setFile] = useState(null);
   const [purpose, setPurpose] = useState("profile_doc");
@@ -118,7 +119,7 @@ export function UploadsPage() {
           <div>
             <div className="font-medium text-white">{upload.original_filename}</div>
             <div className="mt-1 text-xs text-slate-500">
-              {isAdmin ? `User #${upload.user_id} - ` : ""}{upload.purpose} {upload.certification?.title ? `- ${upload.certification.title}` : ""}
+              {isPrivileged ? `User #${upload.user_id} - ` : ""}{upload.purpose} {upload.certification?.title ? `- ${upload.certification.title}` : ""}
             </div>
             {currentStatus === "rejected" && (
               <div className="mt-2 text-xs text-rose-300">Reason: {upload.review_reason || "Please re-upload a clearer or valid document."}</div>
@@ -126,7 +127,7 @@ export function UploadsPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className={`rounded-full px-2.5 py-1 text-xs ${status.cls}`}>{status.label}</span>
-            {isAdmin && currentStatus === "under_review" && (
+            {canReview && currentStatus === "under_review" && (
               <>
                 <Button className="!py-1.5 !px-3 !text-xs" variant="ghost" loading={aiCheckBusy === upload.id} onClick={() => checkCertificateConfidence(upload)}>AI Check</Button>
                 <Button className="!py-1.5 !px-3 !text-xs" loading={reviewBusy === `approved-${upload.id}`} onClick={() => review(upload, "approved")}>Approve</Button>
@@ -147,11 +148,11 @@ export function UploadsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl font-bold text-white">{isAdmin ? "Verify Uploads" : "Uploads"}</h2>
-        <p className="text-slate-400">{isAdmin ? "Review user documents and send approval or rejection notifications." : "Upload and track required documents for admin verification."}</p>
+        <h2 className="font-display text-2xl font-bold text-white">{isPrivileged ? (canReview ? "Approver Document Review" : "Document Audit View") : "Uploads"}</h2>
+        <p className="text-slate-400">{isPrivileged ? (canReview ? "Review user documents and send approval or rejection notifications." : "View uploaded documents and review status without decision controls.") : "Upload and track required documents for admin verification."}</p>
       </div>
 
-      {!isAdmin && <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      {!isPrivileged && <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <Card title="Document Checklist" subtitle="Required and optional certification documents">
           <div className="space-y-3">
             {checklist.map((item) => {
@@ -207,7 +208,7 @@ export function UploadsPage() {
         </Card>
       </div>}
 
-      {isAdmin ? (
+      {isPrivileged ? (
         <>
           {aiConfidence && (
             <Card title="AI Certificate Verification Confidence" subtitle="Scoring result for the selected upload">

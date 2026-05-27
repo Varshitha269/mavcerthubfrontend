@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "./Button.jsx";
 
 export function Modal({ open, title, children, onClose, footer, size = "md" }) {
@@ -13,7 +14,7 @@ export function Modal({ open, title, children, onClose, footer, size = "md" }) {
 
   const max = size === "lg" ? "max-w-2xl" : size === "sm" ? "max-w-sm" : "max-w-lg";
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <button
         type="button"
@@ -50,6 +51,7 @@ export function Modal({ open, title, children, onClose, footer, size = "md" }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

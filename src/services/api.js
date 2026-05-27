@@ -142,6 +142,17 @@ export const vouchersApi = {
   adminList: (params) => api.get("/vouchers/", { params }),
   adminIssue: (payload) => api.post("/vouchers/", payload),
   adminPatch: (voucherId, payload) => api.patch(`/vouchers/${voucherId}`, payload),
+  claim: (token) => api.get(`/vouchers/claim/${token}`),
+};
+
+export const communicationsApi = {
+  keyword: (payload) => api.post("/communications/keyword", payload),
+  reschedule: (payload) => api.post("/communications/reschedule", payload),
+  createSupport: (payload) => api.post("/communications/support", payload),
+  support: () => api.get("/communications/support"),
+  delivery: () => api.get("/communications/delivery"),
+  adminSupport: (params) => api.get("/communications/admin/support", { params }),
+  decideSupport: (supportId, payload) => api.post(`/communications/admin/support/${supportId}/decision`, payload),
 };
 
 export const aiApi = {
@@ -150,10 +161,14 @@ export const aiApi = {
   generateTasks: (payload) => api.post("/ai/tasks/generate", payload),
   verifyCertificateUpload: (payload) => api.post("/ai/certificate/verify_upload", payload),
   userRoadmap: () => api.get("/ai/user/roadmap"),
-  certificationMatches: () => api.get("/ai/user/certification-matches"),
+  certificationMatches: (targetRole) => api.get("/ai/user/certification-matches", { params: targetRole ? { target_role: targetRole } : undefined }),
   learningPath: (payload) => api.post("/ai/user/learning-path", payload),
   examReadiness: (params) => api.get("/ai/user/exam-readiness", { params }),
   resumeRecommendations: (payload) => api.post("/ai/user/resume-recommendations", payload),
+  resumeRecommendationsPdf: (formData) =>
+    api.post("/ai/user/resume-recommendations/pdf", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
   adminDriveSummary: (driveId) => api.get(`/ai/admin/drive-insights/${driveId}`),
   adminCandidateRanking: (params) => api.get("/ai/admin/candidate-ranking", { params }),
   adminVoucherRecommendations: (params) => api.get("/ai/admin/voucher-recommendations", { params }),
@@ -178,6 +193,7 @@ export const adminApi = {
   createUser: (payload) => api.post("/admin/users", payload),
   patchUser: (userId, payload) => api.patch(`/admin/users/${userId}`, payload),
   analytics: () => api.get("/admin/analytics"),
+  roleDashboard: () => api.get("/admin/role-dashboard"),
   runReminders: (payload = {}) => api.post("/admin/reminders/run", payload),
   auditLogs: () => api.get("/admin/audit-logs"),
   emailLogs: () => api.get("/admin/email-logs"),

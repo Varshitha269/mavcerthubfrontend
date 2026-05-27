@@ -9,13 +9,14 @@ import { Modal } from "../components/Modal.jsx";
 import { Table } from "../components/Table.jsx";
 
 export function ResultsAdminPage() {
-  const { isAdmin } = useAuth();
+  const { user, isPrivileged } = useAuth();
+  const canCoordinate = user?.role === "coordinator" || user?.role === "admin";
   const toast = useToast();
 
   const [filters, setFilters] = useState({ drive_id: "", registration_id: "" });
   const list = useAsyncData(
     () =>
-      isAdmin
+      isPrivileged
         ? resultsAdminApi
             .list({
               drive_id: filters.drive_id ? Number(filters.drive_id) : undefined,
@@ -23,7 +24,7 @@ export function ResultsAdminPage() {
             })
             .then((r) => r.data)
         : Promise.resolve([]),
-    [isAdmin, filters.drive_id, filters.registration_id]
+    [isPrivileged, filters.drive_id, filters.registration_id]
   );
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -106,17 +107,17 @@ export function ResultsAdminPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold text-white">Assessment results</h2>
-          <p className="text-slate-400">This tab records the outcome after a drive is conducted. Import a CSV or create a result for each registration.</p>
+          <h2 className="font-display text-2xl font-bold text-white">{canCoordinate ? "Coordinator Assessment Results" : "Assessment Results View"}</h2>
+          <p className="text-slate-400">{canCoordinate ? "Import CSVs or create result records after drives are conducted." : "View assessment outcomes across drives without import controls."}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={exportCsv} loading={busy}>
             Export CSV
           </Button>
-          <Button variant="ghost" onClick={() => setImportOpen(true)}>
+          {canCoordinate && <Button variant="ghost" onClick={() => setImportOpen(true)}>
             Import CSV
-          </Button>
-          <Button onClick={() => setCreateOpen(true)}>New result</Button>
+          </Button>}
+          {canCoordinate && <Button onClick={() => setCreateOpen(true)}>New result</Button>}
         </div>
       </div>
 

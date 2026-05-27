@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { aiApi, certificationsApi, enrollmentsApi, tasksApi, vouchersApi } from "../services/api.js";
@@ -83,6 +83,11 @@ export function EnrollmentsPage() {
   const [editForm, setEditForm] = useState({ status: "", progress_percent: "", target_completion_date: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [enrollBusyId, setEnrollBusyId] = useState(null);
+  const [eligibility, setEligibility] = useState({});
+  const [testModal, setTestModal] = useState(null);
+  const [testAnswers, setTestAnswers] = useState({});
+  const [testResult, setTestResult] = useState(null);
+  const [testSubmitting, setTestSubmitting] = useState(false);
 
   // Split enrollments
   const savedForLater = useMemo(
@@ -93,6 +98,26 @@ export function EnrollmentsPage() {
     () => (mine.data || []).filter((e) => e.status !== "saved_for_later"),
     [mine.data]
   );
+
+  useEffect(() => {
+    const stored = localStorage.getItem("mch_eligibility_test_draft");
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed?.testModal?.certification_id) {
+        setTestModal(parsed.testModal);
+        setTestAnswers(parsed.testAnswers || {});
+        setTestResult(parsed.testResult || null);
+      }
+    } catch {
+      localStorage.removeItem("mch_eligibility_test_draft");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!testModal) return;
+    localStorage.setItem("mch_eligibility_test_draft", JSON.stringify({ testModal, testAnswers, testResult }));
+  }, [testModal, testAnswers, testResult]);
 
   async function saveEdit(e) {
     e.preventDefault();
@@ -127,6 +152,70 @@ export function EnrollmentsPage() {
     } finally {
       setEnrollBusyId(null);
     }
+  }
+
+  async function checkEligibility(enrollment) {
+    setEnrollBusyId(`eligibility-${enrollment.id}`);
+    try {
+      const { data } = await certificationsApi.eligibility(enrollment.certification_id);
+      setEligibility((prev) => ({ ...prev, [enrollment.certification_id]: data }));
+      toast.success(data.test_attempt?.passed ? "Eligibility test already passed." : "Take the test before enrolling.");
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Eligibility check failed");
+    } finally {
+      setEnrollBusyId(null);
+    }
+  }
+
+  async function startEligibilityTest(enrollment) {
+    setEnrollBusyId(`test-${enrollment.id}`);
+    setTestResult(null);
+    setTestAnswers({});
+    try {
+      const { data } = await certificationsApi.eligibilityTest(enrollment.certification_id);
+      setTestModal(data);
+      localStorage.setItem("mch_eligibility_test_draft", JSON.stringify({ testModal: data, testAnswers: {}, testResult: null }));
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to load test");
+    } finally {
+      setEnrollBusyId(null);
+    }
+  }
+
+  async function submitEligibilityTest() {
+    if (!testModal) return;
+    setTestSubmitting(true);
+    try {
+      const { data } = await certificationsApi.submitEligibilityTest(testModal.certification_id, { answers: testAnswers });
+      setTestResult(data);
+      setEligibility((prev) => ({
+        ...prev,
+        [testModal.certification_id]: {
+          eligible: data.passed,
+          test_passed: data.passed,
+          status: data.passed ? "eligible" : "review_required",
+          message: data.message,
+          test_attempt: {
+            id: data.attempt_id,
+            score: data.score,
+            passed: data.passed,
+            status: data.status,
+          },
+        },
+      }));
+      toast.success(data.message);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Failed to submit test");
+    } finally {
+      setTestSubmitting(false);
+    }
+  }
+
+  function closeEligibilityTest() {
+    setTestModal(null);
+    setTestResult(null);
+    setTestAnswers({});
+    localStorage.removeItem("mch_eligibility_test_draft");
   }
 
   function downloadVoucher(voucher, certTitle) {
@@ -174,6 +263,8 @@ export function EnrollmentsPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {savedForLater.map((e) => {
               const cert = certMap[e.certification_id];
+              const eligibilityInfo = eligibility[e.certification_id];
+              const testPassed = eligibilityInfo?.test_passed || eligibilityInfo?.test_attempt?.passed;
               return (
                 <div
                   key={e.id}
@@ -199,13 +290,32 @@ export function EnrollmentsPage() {
                       Saved on: {new Date(e.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      className="!py-1.5 !px-2 !text-xs"
+                      loading={enrollBusyId === `eligibility-${e.id}`}
+                      onClick={() => checkEligibility(e)}
+                    >
+                      Check Eligibility
+                    </Button>
+                    {!testPassed && (
+                      <Button
+                        variant="ghost"
+                        className="!py-1.5 !px-2 !text-xs"
+                        loading={enrollBusyId === `test-${e.id}`}
+                        onClick={() => startEligibilityTest(e)}
+                      >
+                        Take Test
+                      </Button>
+                    )}
                     <Button
                       className="flex-1 !py-1.5 !text-xs"
                       loading={enrollBusyId === e.id}
+                      disabled={!testPassed}
                       onClick={() => enrollNow(e)}
                     >
-                      Enroll Now
+                      {testPassed ? "Enroll Now" : "Pass Test"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -439,6 +549,56 @@ export function EnrollmentsPage() {
             <textarea className={`${inputClass} min-h-[72px]`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} />
           </div>
         </form>
+      </Modal>
+      <Modal
+        open={!!testModal}
+        title={testModal?.title || "Eligibility test"}
+        onClose={closeEligibilityTest}
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeEligibilityTest}>Close Test</Button>
+            {!testResult && (
+              <Button
+                loading={testSubmitting}
+                disabled={!(testModal?.questions || []).every((q) => testAnswers[q.id])}
+                onClick={submitEligibilityTest}
+              >
+                Submit Test
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="pr-8 text-sm leading-6 text-slate-400">
+            Answer these readiness questions before enrolling in your saved certification.
+          </p>
+          {testResult && (
+            <div className={`rounded-xl border p-3 ${testResult.passed ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200" : "border-amber-500/30 bg-amber-500/10 text-amber-200"}`}>
+              Score: {testResult.score}% - {testResult.message}
+            </div>
+          )}
+          {(testModal?.questions || []).map((q) => (
+            <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-sm font-semibold leading-5 text-white">{q.question}</div>
+              <div className="mt-2 grid gap-2">
+                {q.options.map((option) => (
+                  <label key={option} className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-sm text-slate-300 transition hover:bg-white/[0.07]">
+                    <input
+                      type="radio"
+                      name={q.id}
+                      disabled={!!testResult}
+                      checked={testAnswers[q.id] === option}
+                      onChange={() => setTestAnswers((prev) => ({ ...prev, [q.id]: option }))}
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </Modal>
     </div>
   );

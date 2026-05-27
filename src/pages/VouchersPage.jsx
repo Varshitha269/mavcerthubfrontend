@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAsyncData } from "../hooks/useAsyncData.js";
 import { aiApi, certificationsApi, drivesBrdApi, vouchersApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -14,11 +15,12 @@ const inputClass = "mt-1 w-full rounded-xl border border-white/10 bg-white/5 px-
 
 export function VouchersPage() {
   const toast = useToast();
-  const { isAdmin } = useAuth();
+  const { user, isPrivileged } = useAuth();
+  const canIssue = user?.role === "coordinator" || user?.role === "admin";
   const mine = useAsyncData(() => vouchersApi.my().then((r) => r.data), []);
-  const adminList = useAsyncData(async () => (isAdmin ? vouchersApi.adminList().then((r) => r.data) : []), [isAdmin]);
+  const adminList = useAsyncData(async () => (isPrivileged ? vouchersApi.adminList().then((r) => r.data) : []), [isPrivileged]);
   const certs = useAsyncData(() => certificationsApi.list().then((r) => r.data), []);
-  const drives = useAsyncData(async () => (isAdmin ? drivesBrdApi.adminList().then((r) => r.data) : []), [isAdmin]);
+  const drives = useAsyncData(async () => (isPrivileged ? drivesBrdApi.adminList().then((r) => r.data) : []), [isPrivileged]);
 
   const [issueOpen, setIssueOpen] = useState(false);
   const [issue, setIssue] = useState({ user_id: "", code: "", certification_id: "", notes: "" });
@@ -109,19 +111,19 @@ export function VouchersPage() {
 
   if (mine.loading && !mine.data) return <CardSkeleton />;
 
-  const rows = isAdmin ? adminList.data || [] : mine.data || [];
+  const rows = isPrivileged ? adminList.data || [] : mine.data || [];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold text-white">{isAdmin ? "Voucher Management" : "My Vouchers"}</h2>
-          <p className="text-slate-400">{isAdmin ? "Issue and manage vouchers for users by certification." : "Check assigned voucher codes, status, and expiry dates."}</p>
+          <h2 className="font-display text-2xl font-bold text-white">{isPrivileged ? (canIssue ? "Coordinator Voucher Allocation" : "Voucher Audit View") : "My Vouchers"}</h2>
+          <p className="text-slate-400">{isPrivileged ? (canIssue ? "Issue and monitor vouchers for eligible passed candidates." : "View voucher lifecycle without allocation controls.") : "Check assigned voucher codes, status, and expiry dates."}</p>
         </div>
-        {isAdmin && <Button onClick={() => setIssueOpen(true)}>Issue Voucher</Button>}
+        {canIssue && <Button onClick={() => setIssueOpen(true)}>Issue Voucher</Button>}
       </div>
 
-      {isAdmin && (
+      {canIssue && (
         <Card title="Smart Voucher Allocation Recommendation" subtitle="Prioritizes eligible candidates most likely to complete successfully">
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <div>
@@ -183,23 +185,24 @@ export function VouchersPage() {
         </Card>
       )}
 
-      <Card title={isAdmin ? "All Vouchers" : "Assigned Vouchers"}>
+      <Card title={isPrivileged ? "All Vouchers" : "Assigned Vouchers"}>
         <Table
           columns={[
             { key: "id", label: "ID" },
-            ...(isAdmin ? [{ key: "user_id", label: "User" }] : []),
+            ...(isPrivileged ? [{ key: "user_id", label: "User" }] : []),
             { key: "code", label: "Code" },
             { key: "certification_id", label: "Certification" },
             { key: "status", label: "Status", render: (row) => statusBadge(row.status) },
             { key: "expires_at", label: "Expires", render: (row) => row.expires_at ? new Date(row.expires_at).toLocaleDateString() : "Not set" },
-            ...(isAdmin ? [{
+            { key: "claim_url", label: "Secure Link", render: (row) => row.claim_url ? <Link className="text-cyan-300 hover:text-cyan-100" to={new URL(row.claim_url).pathname}>Claim</Link> : "Not set" },
+            ...(canIssue ? [{
               key: "a",
               label: "",
               render: (row) => <Button variant="ghost" className="!py-1 !text-xs" onClick={() => { setEdit(row); setEditForm({ status: row.status, notes: row.notes || "" }); }}>Edit</Button>,
             }] : []),
           ]}
           rows={rows}
-          emptyMessage={isAdmin ? "No vouchers issued yet." : "No vouchers assigned yet."}
+          emptyMessage={isPrivileged ? "No vouchers issued yet." : "No vouchers assigned yet."}
         />
       </Card>
 

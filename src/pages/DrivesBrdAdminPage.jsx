@@ -9,10 +9,11 @@ import { Modal } from "../components/Modal.jsx";
 import { Table } from "../components/Table.jsx";
 
 export function DrivesBrdAdminPage() {
-  const { isAdmin } = useAuth();
+  const { user, isPrivileged } = useAuth();
+  const canCoordinate = user?.role === "coordinator" || user?.role === "admin";
   const toast = useToast();
-  const drives = useAsyncData(() => (isAdmin ? drivesBrdApi.adminList().then((r) => r.data) : Promise.resolve([])), [isAdmin]);
-  const certs = useAsyncData(() => (isAdmin ? certificationsApi.list().then((r) => r.data) : Promise.resolve([])), [isAdmin]);
+  const drives = useAsyncData(() => (isPrivileged ? drivesBrdApi.adminList().then((r) => r.data) : Promise.resolve([])), [isPrivileged]);
+  const certs = useAsyncData(() => (canCoordinate ? certificationsApi.list().then((r) => r.data) : Promise.resolve([])), [canCoordinate]);
 
   const [edit, setEdit] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -232,7 +233,7 @@ export function DrivesBrdAdminPage() {
         owner_email: createForm.owner_email || null,
         status: createForm.status || "open",
       });
-      toast.success("Drive created. Users, owner, and admin were notified; emails are queued when email settings are configured.");
+      toast.success("Drive created. Users, owner, and admin were notified; emails are sending when email settings are configured.");
       setCreateOpen(false);
       setCertSearch("");
       setCertPickerOpen(false);
@@ -329,15 +330,15 @@ export function DrivesBrdAdminPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="font-display text-2xl font-bold text-white">Drive management (BRD)</h2>
-          <p className="text-slate-400">All ongoing, planned, closed, and completed certification drives load here automatically.</p>
+          <h2 className="font-display text-2xl font-bold text-white">{canCoordinate ? "Coordinator Drive Command Center" : "Drive Portfolio View"}</h2>
+          <p className="text-slate-400">{canCoordinate ? "Create, conduct, close, re-conduct, and provision certification drives." : "View ongoing, planned, closed, and completed drives without operational controls."}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        {canCoordinate && <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={seedCurrentDrives} loading={busyAction === "seed-current"}>Add AWS/Azure/DevOps Drives</Button>
           <Button variant="ghost" onClick={seedCompletedDrives} loading={busyAction === "seed-completed"}>Add Completed Drives</Button>
           <Button variant="ghost" onClick={createMissingDrives} loading={busyAction === "ensure-defaults"}>Create Missing Drives</Button>
           <Button onClick={() => { setCreateOpen(true); setCertPickerOpen(false); }}>New Drive</Button>
-        </div>
+        </div>}
       </div>
 
       <Card title="AI Drive Summary & One-click Report" subtitle="Use this inside drive management to spot risks and next actions">
@@ -486,7 +487,7 @@ export function DrivesBrdAdminPage() {
               label: "Repo",
               render: (row) => row.repository_prefix ? <span className="text-xs text-slate-300">{row.repository_prefix}</span> : <span className="text-slate-500">-</span>,
             },
-            {
+            ...(canCoordinate ? [{
               key: "a",
               label: "Actions",
               render: (row) => (
@@ -527,7 +528,7 @@ export function DrivesBrdAdminPage() {
                   </Button>
                 </div>
               ),
-            },
+            }] : []),
             ]}
             rows={filteredDriveRows}
             maxHeight="520px"
@@ -660,7 +661,7 @@ export function DrivesBrdAdminPage() {
                 { key: "voucher_budget", label: "Budget" },
                 { key: "owner_email", label: "Owner" },
                 { key: "next_action", label: "Next Action" },
-                {
+                ...(canCoordinate ? [{
                   key: "actions",
                   label: "Actions",
                   render: (row) => (
@@ -695,7 +696,7 @@ export function DrivesBrdAdminPage() {
                       </Button>
                     </div>
                   ),
-                },
+                }] : []),
               ]}
               rows={focusDrives}
               maxHeight="420px"
@@ -929,7 +930,7 @@ export function DrivesBrdAdminPage() {
             <label className="text-xs text-slate-500">Owner email</label>
             <input className={inputClass} value={createForm.owner_email} onChange={(e) => setCreateForm({ ...createForm, owner_email: e.target.value })} />
           </div>
-          <p className="text-xs text-slate-500">Creating a drive sends notifications to active learners, registered owners, and admins. Emails are queued when ACS email settings are configured.</p>
+          <p className="text-xs text-slate-500">Creating a drive sends notifications to active learners, registered owners, and admins. Emails start sending when ACS email settings are configured.</p>
         </form>
       </Modal>
 
@@ -1003,7 +1004,7 @@ export function DrivesBrdAdminPage() {
             <label className="text-xs text-slate-500">Eligibility rules JSON</label>
             <textarea className={`${inputClass} min-h-[110px] font-mono text-xs`} value={form.eligibility_rules} onChange={(e) => setForm({ ...form, eligibility_rules: e.target.value })} placeholder='{"any":[{"field":"email_domain","op":"eq","value":"company.com"}]}' />
           </div>
-          {!isAdmin && <p className="text-rose-300 text-sm">Admin only.</p>}
+          {!canCoordinate && <p className="text-rose-300 text-sm">Coordinator only.</p>}
         </form>
       </Modal>
     </div>

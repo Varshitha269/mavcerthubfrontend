@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAsyncData } from "../hooks/useAsyncData.js";
-import { aiApi, certificationsApi, enrollmentsApi } from "../services/api.js";
+import { aiApi, certificationsApi, enrollmentsApi, uploadsApi } from "../services/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { Card } from "../components/Card.jsx";
@@ -86,15 +86,17 @@ function Badge({ label, colors }) {
 }
 
 // ── Single certification card ─────────────────────────────────────────────────
-function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStartTest, eligibility, enrolling, isAdmin }) {
+function CertCard({ cert, enrolled, hasCompletionCertificate, onEnroll, onSave, onCheckEligibility, onStartTest, eligibility, enrolling, isAdmin }) {
   const catColors = CATEGORY_COLORS[cert.category] || {};
   const lvlColors = LEVEL_COLORS[cert.level] || {};
   const prereqs = cert.prerequisites ? cert.prerequisites.split("\n").filter(Boolean) : [];
 
-  const isEnrolled = enrolled?.status === "selected" || enrolled?.status === "in_progress" || enrolled?.status === "completed";
+  const isEnrolled = enrolled?.status === "selected" || enrolled?.status === "in_progress";
+  const isCompleted = enrolled?.status === "completed";
   const isSaved = enrolled?.status === "saved_for_later";
   const testPassed = eligibility?.test_passed || eligibility?.test_attempt?.passed;
   const canEnroll = testPassed === true;
+  const canReEnroll = isCompleted && hasCompletionCertificate;
 
   return (
     <div
@@ -182,6 +184,13 @@ function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStar
             </svg>
             Enrolled
           </span>
+        ) : isCompleted ? (
+          <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-400">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Completed
+          </span>
         ) : isSaved ? (
           <span className="flex items-center gap-1.5 text-sm font-medium text-amber-400">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -194,7 +203,7 @@ function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStar
         )}
 
         <div className="flex flex-wrap justify-end gap-2">
-          {!isEnrolled && !isSaved && (
+          {!isEnrolled && !isSaved && !isCompleted && (
             <>
               <Button
                 variant="ghost"
@@ -262,6 +271,19 @@ function CertCard({ cert, enrolled, onEnroll, onSave, onCheckEligibility, onStar
               </Button>
             </>
           )}
+          {canReEnroll && (
+            <Button
+              className="!py-1.5 !px-3 !text-xs"
+              loading={enrolling === `enroll-${cert.id}`}
+              disabled={!canEnroll}
+              onClick={() => onEnroll(cert.id)}
+            >
+              {canEnroll ? "Re-enroll" : "Pass Test"}
+            </Button>
+          )}
+          {isCompleted && !hasCompletionCertificate && (
+            <span className="text-right text-xs text-slate-500">Upload completion certificate to re-enroll</span>
+          )}
         </div>
         </>
         )}
@@ -300,6 +322,7 @@ export function CertificationsPage() {
   const [testResult, setTestResult] = useState(null);
   const [resumeText, setResumeText] = useState("");
   const [resumeGoal, setResumeGoal] = useState("Cloud Engineer");
+  const [resumePdf, setResumePdf] = useState(null);
   const [resumeResult, setResumeResult] = useState(null);
   const [resumeBusy, setResumeBusy] = useState(false);
 
@@ -312,12 +335,40 @@ export function CertificationsPage() {
     () => enrollmentsApi.my().then((r) => r.data),
     []
   );
+  const { data: completedCertificates } = useAsyncData(
+    () => uploadsApi.certificates().then((r) => r.data),
+    []
+  );
 
   // Build map: certId → enrollment
   const enrollmentMap = useMemo(
     () => Object.fromEntries((myEnrollments || []).map((e) => [e.certification_id, e])),
     [myEnrollments]
   );
+  const completedCertificateIds = useMemo(
+    () => new Set((completedCertificates || []).filter((row) => row.has_certificate).map((row) => row.certification?.id).filter(Boolean)),
+    [completedCertificates]
+  );
+
+  useEffect(() => {
+    const stored = localStorage.getItem("mch_eligibility_test_draft");
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed?.testModal?.certification_id) {
+        setTestModal(parsed.testModal);
+        setTestAnswers(parsed.testAnswers || {});
+        setTestResult(parsed.testResult || null);
+      }
+    } catch {
+      localStorage.removeItem("mch_eligibility_test_draft");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!testModal) return;
+    localStorage.setItem("mch_eligibility_test_draft", JSON.stringify({ testModal, testAnswers, testResult }));
+  }, [testModal, testAnswers, testResult]);
 
   useEffect(() => {
     if (isAdmin || !certs?.length) return;
@@ -402,6 +453,7 @@ export function CertificationsPage() {
     try {
       const { data } = await certificationsApi.eligibilityTest(certId);
       setTestModal(data);
+      localStorage.setItem("mch_eligibility_test_draft", JSON.stringify({ testModal: data, testAnswers: {}, testResult: null }));
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Failed to load test");
     } finally {
@@ -436,6 +488,13 @@ export function CertificationsPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function closeEligibilityTest() {
+    setTestModal(null);
+    setTestResult(null);
+    setTestAnswers({});
+    localStorage.removeItem("mch_eligibility_test_draft");
   }
 
   // ── Admin CRUD ──────────────────────────────────────────────────────────
@@ -502,13 +561,22 @@ export function CertificationsPage() {
   }
 
   async function generateResumeRecommendations() {
-    if (!resumeText.trim()) {
-      toast.error("Paste resume or profile text first.");
+    if (!resumeText.trim() && !resumePdf) {
+      toast.error("Paste resume text or upload a PDF resume first.");
       return;
     }
     setResumeBusy(true);
     try {
-      const { data } = await aiApi.resumeRecommendations({ resume_text: resumeText, goal: resumeGoal });
+      const { data } = resumePdf
+        ? await aiApi.resumeRecommendationsPdf(
+            (() => {
+              const formData = new FormData();
+              formData.append("file", resumePdf);
+              formData.append("goal", resumeGoal);
+              return formData;
+            })()
+          )
+        : await aiApi.resumeRecommendations({ resume_text: resumeText, goal: resumeGoal });
       setResumeResult(data);
       toast.success("Resume recommendations generated.");
     } catch (err) {
@@ -552,6 +620,31 @@ export function CertificationsPage() {
             </div>
             <Button loading={resumeBusy} onClick={generateResumeRecommendations}>Recommend</Button>
           </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-[240px_1fr]">
+            <div className="lg:col-start-2">
+              <label className="text-xs text-slate-500">Upload resume PDF</label>
+              <input
+                className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-500/15 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-indigo-200`}
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setResumePdf(e.target.files?.[0] || null)}
+              />
+              {resumePdf && (
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-semibold text-slate-400 hover:text-white"
+                  onClick={() => setResumePdf(null)}
+                >
+                  Remove {resumePdf.name}
+                </button>
+              )}
+            </div>
+          </div>
+          {resumeResult?.source && (
+            <p className="mt-3 text-xs text-slate-500">
+              Read {resumeResult.source.extracted_characters} characters from {resumeResult.source.filename}.
+            </p>
+          )}
           {resumeResult && (
             <div className="mt-4">
               <Table
@@ -657,6 +750,7 @@ export function CertificationsPage() {
                 key={cert.id}
                 cert={cert}
                 enrolled={enrollmentMap[cert.id]}
+                hasCompletionCertificate={completedCertificateIds.has(cert.id)}
                 onEnroll={handleEnroll}
                 onSave={handleSave}
                 onCheckEligibility={handleEligibility}
@@ -770,11 +864,11 @@ export function CertificationsPage() {
       <Modal
         open={!!testModal}
         title={testModal?.title || "Eligibility test"}
-        onClose={() => setTestModal(null)}
+        onClose={closeEligibilityTest}
         size="lg"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setTestModal(null)}>Close Test</Button>
+            <Button variant="ghost" onClick={closeEligibilityTest}>Close Test</Button>
             {!isAdmin && !testResult && (
               <Button
                 loading={submitting}
@@ -797,7 +891,7 @@ export function CertificationsPage() {
             </div>
           )}
           {testResult && (
-            <Button className="!px-3 !py-1.5 !text-xs" variant="ghost" onClick={() => setTestModal(null)}>Close Test</Button>
+            <Button className="!px-3 !py-1.5 !text-xs" variant="ghost" onClick={closeEligibilityTest}>Close Test</Button>
           )}
           {(testModal?.questions || []).map((q) => (
             <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
